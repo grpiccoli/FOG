@@ -9,7 +9,8 @@ From: ubuntu:20.04
 	SPECIES "Bluff Oyster"
 
 %post
-	#set region and locals to NZ.
+	#set region and locals to NZ
+	apt-get clean && apt-get update && apt-get install -y locales
 	locale-gen en_NZ.UTF-8
 	export LC_ALL=en_NZ.UTF-8
 	apt-get install $(check-language-support)
