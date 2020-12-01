@@ -10,10 +10,10 @@ From: ubuntu:20.04
 
 %post
 	#set region and locals to NZ
-	apt install language-pack-en language-pack-gnome-en
+	apt-get install -y locales locales-all
 	locale-gen en_NZ.UTF-8
 	export LC_ALL=en_NZ.UTF-8
-	apt install $(check-language-support)
+	apt-get install $(check-language-support)
 	dpkg-reconfigure locales
 	update-locale LANG="en_NZ.UTF-8" LANGUAGE="en_NZ.UTF-8" LC_MESSAGES="en_NZ.UTF-8" LC_COLLATE="en_NZ.UTF-8" LC_CTYPE="en_NZ.UTF-8"
 	echo 'unset GREETER_LANGUAGE' >> ~/.profile
