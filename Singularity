@@ -10,7 +10,6 @@ From: ubuntu:20.04
 
 %post
 	#set region and locals to NZ
-	apt-get install -y locales locales-all
 	locale-gen en_NZ.UTF-8
 	export LC_ALL=en_NZ.UTF-8
 	apt-get install $(check-language-support)
