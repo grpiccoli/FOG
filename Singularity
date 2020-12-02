@@ -21,6 +21,6 @@ From: ubuntu:20.04
 	#enable universe and dev libs
 	#add-apt-repository universe
 	sed -i 's/^#(.*) universe$/$1 universe/' /etc/apt/sources.list
-	apt-update
+	apt-get update
 	grep "universe" /etc/apt/sources.list
 	apt install -y apt-transport-https g++ make build-essential zlibc zlib1g zlib1g-dev
