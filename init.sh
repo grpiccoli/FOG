@@ -1,5 +1,5 @@
 #install enhanced mode
-sudo apt install git vim
+sudo apt install git vim xclip
 wget https://github.com/microsoft/linux-vm-tools/blob/cb07b3eaeb89822ebc6eaddb10f3932bb1879f47/ubuntu/20.04/install.sh
 chmod +x install.sh
 sudo ./install.sh
