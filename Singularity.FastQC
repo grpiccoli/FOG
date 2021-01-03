@@ -19,4 +19,4 @@ From: ubuntu:20.04
 	DEBIAN_FRONTEND=noninteractive apt-get -yqq install fastqc=0.11.9+dfsg-2
 
 %runscript
-	fastqc "$@"
+	exec "$@"
