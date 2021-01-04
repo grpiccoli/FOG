@@ -11,9 +11,9 @@ From: ubuntu:20.04
 
 %post
 	#set region and locals to NZ
-	apt-get clean && apt-get update && apt-get install -yqq locales
-	locale-gen en_NZ.UTF-8
-	update-locale LANG="en_NZ.UTF-8" LANGUAGE="en_NZ.UTF-8" LC_MESSAGES="en_NZ.UTF-8" LC_COLLATE="en_NZ.UTF-8" LC_CTYPE="en_NZ.UTF-8"
+	#apt-get clean && apt-get update && apt-get install -yqq locales
+	#locale-gen en_NZ.UTF-8
+	#update-locale LANG="en_NZ.UTF-8" LANGUAGE="en_NZ.UTF-8" LC_MESSAGES="en_NZ.UTF-8" LC_COLLATE="en_NZ.UTF-8" LC_CTYPE="en_NZ.UTF-8"
 	
 	#MultiQC
 	DEBIAN_FRONTEND=noninteractive apt-get -yqq install python3-pip=20.0.2-5ubuntu1.1
