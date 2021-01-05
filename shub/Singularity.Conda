@@ -22,9 +22,9 @@ From: ubuntu:20.04
 	echo 'export PATH=$PATH:/root/miniconda3/bin' >> $SINGULARITY_ENVIRONMENT
 	conda create -y --name py3.8 python=3.8
 	conda activate py3.8
+	conda config --add channels defaults
 	conda config --add channels bioconda
 	conda config --add channels conda-forge
 
 %runscript
-	#./miniconda3/bin/multiqc
 	exec "$@"

@@ -1,0 +1,22 @@
+bootstrap: shub
+From: shub://kiwiepic/FOG:conda
+
+%help
+    "Quality Control"
+
+%labels
+    MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+    SPECIES "Bluff Oyster"
+    PROJECT "Flat Oyster Genomics"
+
+%post
+	conda config --add channels defaults
+	conda config --add channels bioconda
+	conda config --add channels conda-forge
+    conda install purge_haplotigs
+
+%runscript
+    exec "$@"
+
+%test
+	purge_haplotigs test
