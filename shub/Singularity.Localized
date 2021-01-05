@@ -1,4 +1,4 @@
-ootstrap: docker
+bootstrap: docker
 From: ubuntu:20.04
 
 %help
@@ -11,8 +11,7 @@ From: ubuntu:20.04
 
 %post
     apt-get clean && apt-get update
-	apt-get install -yqq locales
-	apt-get install -yqq apt-utils
+	apt-get install -yqq locales=2.31-0ubuntu9.1 apt-utils=2.0.2ubuntu0.2
 	locale-gen en_NZ.UTF-8
 	update-locale LANG="en_NZ.UTF-8" LANGUAGE="en_NZ.UTF-8" LC_MESSAGES="en_NZ.UTF-8" LC_COLLATE="en_NZ.UTF-8" LC_CTYPE="en_NZ.UTF-8"
 

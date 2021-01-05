@@ -1,11 +1,20 @@
 #!/usr/bin/env nextflow
 
 raw_isoseq = params.isoseq
+raw_hifi = 
 out_dir = file(params.outdir)
 
 out_dir.mkdir()
 
 isoseq_reads = Channel.fromPath("$raw_isoseq/**/*.fastq.gz", type: 'file').buffer(size:1)
+
+process bam2fasta {
+	input:
+	script:
+	"""
+	
+	"""
+}
 
 process canu {
 	label 'canu'
