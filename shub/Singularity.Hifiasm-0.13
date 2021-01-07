@@ -1,0 +1,26 @@
+Bootstrap: docker
+From: alpine:3.12.3
+
+%help
+    "Hifiasm v0.13 image"
+
+%labels
+    MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+    SPECIES "Bluff Oyster"
+    PROJECT "Flat Oyster Genomics"
+
+%post
+	apk add --no-cache gcc=9.3.0-r2 make=4.3-r0 g++=9.3.0-r2 \
+	build-base=0.5-r2 zlib-dev=1.2.11-r3
+	wget https://github.com/chhylp123/hifiasm/archive/v0.13.zip
+	echo "6907d810ae040618f248d8e3af20faf8  v0.13.zip" | md5sum -cw -
+	unzip v0.13.zip
+	cd hifiasm-0.13
+	make
+	mv hifiasm /usr/local/bin
+	cd
+	rm -rf *0.13*
+	apk del gcc make g++ build-base zlib-dev
+
+%runscript
+	hifiasm "$@"

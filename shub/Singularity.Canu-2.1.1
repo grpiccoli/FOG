@@ -1,0 +1,26 @@
+Bootstrap: docker
+From: alpine:3.12.3
+
+%help
+	"Canu Assembler v2.1.1 image"
+	echo "commands available"
+	ls canu-2.1.1/bin
+	canu
+
+%labels
+	MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+	SPECIES "Bluff Oyster"
+	PROJECT "Flat Oyster Genomics"
+
+%post
+	apk add --no-cache perl=5.30.3-r0
+	wget -qO- https://github.com/marbl/canu/releases/download/v2.1.1/canu-2.1.1.Linux-amd64.tar.xz | tar -xJf -
+
+%environment
+	export PATH=$PATH:/root/canu-2.1.1/bin
+
+%test
+	canu
+
+%apprun canu
+	canu "$@"

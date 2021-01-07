@@ -1,0 +1,23 @@
+bootstrap: docker
+From: continuumio/miniconda3:4.9.2-alpine
+
+%help
+    "PacBio IsoSeq3 v3.4.0 image"
+
+%labels
+    MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+    SPECIES "Bluff Oyster"
+    PROJECT "Flat Oyster Genomics"
+
+%post
+    /opt/conda/bin/conda install -c bioconda -y isoseq3=3.4.0
+	/opt/conda/bin/conda clean -fay
+
+%environment
+	export PATH=$PATH:/opt/conda/bin
+
+%test
+	isoseq3 -h
+
+%runscript
+    exec "$@"
