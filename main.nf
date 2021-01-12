@@ -5,7 +5,7 @@ out_dir.mkdir()
 
 bamiso = Channel.fromPath("$params.isoseq/**/*.bam", type: 'file').buffer(size:1)
 bamref = Channel.fromPath("$params.ref/*.bam", type: 'file').buffer(size:1)
-bamvar = Channel.fromPath("$params.hifi/**/*.bam", type: 'file').buffer(size:1)
+bamccs = Channel.fromPath("$params.hifi/**/*.bam", type: 'file').buffer(size:1)
 hicref = Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file').buffer(size:2)
 bams = bamiso.mix(bamref,bamvar)
 
@@ -45,15 +45,23 @@ process fastqc {
     """
 }
 
-process multiqc_ref {
-    tag "multiqc_iso.$x"
+process multiqc {
+    tag "multiqc.$x"
 
     input:
-	ref = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
-	hic = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
-	var = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
-	iso = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
-    file ('*') from ref.mix(hic,var,iso)
+    file x, ('*') from 
+	fastqc.map { 
+	if (it =~/.*ref.*/){  
+		return ['ref', it]  
+	}else if(it =~/.*hic.*/){ 
+		return ['hic', it]  
+	}else if(it =~/.*ccs.*/){ 
+		return ['css', it]  
+	}else if(it =~/.*iso.*/){ 
+		return ['iso', it]  
+	}  
+	} 
+	.groupTuple()
 
     output:
     file "multiqc_report.html" into multiqc
