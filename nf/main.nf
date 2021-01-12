@@ -1,4 +1,5 @@
 #!/usr/bin/env nextflow
+params.run = 'all'
 
 out_dir = file(params.outdir)
 
@@ -19,6 +20,9 @@ process bam2fastx {
 	output:
 	file "*.fastq.gz" into fastq
 
+	when:
+	params.run == 'all' || params.run == 'bam2fastx'
+
 	script:
 	"""
 	bam2fastq -o $x $x
@@ -30,8 +34,8 @@ process bam2fastx {
 	"""
 }
 
-process fastqc_iso {
-    tag "fastqc_iso.$x"
+process fastqc {
+    tag "fastqc.$x"
 
     input:
     file x from fastqiso
@@ -39,13 +43,16 @@ process fastqc_iso {
     output:
     file "*_fastqc.{zip,html}" into fastqciso
 
+	when:
+	params.run == 'all' || params.run == 'fastqc'
+
     script:
     """
     fastqc $iso_sample -t ${task.cpus} --noextract
     """
 }
 
-process multiqc_iso {
+process multiqc {
     tag "multiqc_iso.$x"
 
     input:
@@ -55,43 +62,14 @@ process multiqc_iso {
     file "multiqc_report.html" into multiqciso
     file "multiqc_data"
 
-    script:
-    """
-    multiqc .
-    """
-}
-
-process fastqc_ref {
-    tag "fastqc_ref.$x"
-
-    input:
-    file x from fastqiso
-
-    output:
-    file "*_fastqc.{zip,html}" into fastqciso
-
-    script:
-    """
-    fastqc $iso_sample -t ${task.cpus} --noextract
-    """
-}
-
-process multiqc_iso {
-    tag "multiqc_iso.$x"
-
-    input:
-    file ('*') from fastqciso.collect().ifEmpty([])
-
-    output:
-    file "multiqc_report.html" into multiqciso
-    file "multiqc_data"
+	when:
+    params.run == 'all' || params.run == 'multiqc'
 
     script:
     """
     multiqc .
     """
 }
-
 
 process canu {
 	tag "canu.$x"
@@ -101,6 +79,9 @@ process canu {
 
 	output:
 	file "*_fastqc.{zip,html}" into iso_fastqc
+
+	when:
+    params.run == 'all' || params.run == 'canu'
 
 	script:
 	"""
@@ -116,6 +97,9 @@ process peregrine {
 
     output:
     file "*_fastqc.{zip,html}" into iso_fastqc
+
+	when:
+    params.run == 'all' || params.run == 'peregrine'
 
     script:
     """
