@@ -4,7 +4,7 @@ out_dir = file(params.outdir)
 out_dir.mkdir()
 
 bamiso = Channel.fromPath("$params.isoseq/**/*.bam", type: 'file').buffer(size:1)
-bamref = Channel.fromPath("$params.ref/**/*.bam", type: 'file').buffer(size:1)
+bamref = Channel.fromPath("$params.ref/*.bam", type: 'file').buffer(size:1)
 bamvar = Channel.fromPath("$params.hifi/**/*.bam", type: 'file').buffer(size:1)
 hicref = Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file').buffer(size:2)
 bams = bamiso.mix(bamref,bamvar)
@@ -31,29 +31,32 @@ process fastqc {
     tag "fastqc.$x"
 
     input:
-    file x from fastqiso
+    file x from fastq.mix(hicref)
 
     output:
-    file "*_fastqc.{zip,html}" into fastqciso
+    file "*_fastqc.{zip,html}" into fastqc
 
 	when:
 	params.run == 'all' || params.run == 'fastqc'
 
     script:
     """
-    fastqc $iso_sample -t ${task.cpus} --noextract
+    fastqc $x -t ${task.cpus} --noextract
     """
 }
 
-process multiqc {
+process multiqc_ref {
     tag "multiqc_iso.$x"
 
     input:
-    file ('*') from fastqciso.collect().ifEmpty([])
+	ref = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
+	hic = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
+	var = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
+	iso = fastqc.filter(~/.*${params.refname}.*/).collect().ifEmpty([])
+    file ('*') from ref.mix(hic,var,iso)
 
     output:
-    file "multiqc_report.html" into multiqciso
-    file "multiqc_data"
+    file "multiqc_report.html" into multiqc
 
 	when:
     params.run == 'all' || params.run == 'multiqc'
