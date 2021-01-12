@@ -25,11 +25,6 @@ process bam2fastx {
 	"""
 	bam2fastq -o $x $x
 	"""
-	
-	stub:
-	"""
-	touch $x.fastq
-	"""
 }
 
 process fastqc {
