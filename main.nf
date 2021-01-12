@@ -17,6 +17,7 @@ process bam2fastx {
 
 	output:
 	file "*.fastq.gz" into fastq
+	file "*${params.refname}*" into { ref_canu; ref_peregrine }
 
 	when:
 	params.run == 'all' || params.run == 'bam2fastx'
@@ -79,10 +80,10 @@ process canu {
 	tag "canu.$x"
 
 	input:
-	file x from fastqref
+	file x from ref_canu
 
 	output:
-	file "*_fastqc.{zip,html}" into iso_fastqc
+	file "*fasta" into canu
 
 	when:
     params.run == 'all' || params.run == 'canu'
@@ -97,10 +98,10 @@ process peregrine {
 	tag "peregrine.$x"
 
     input:
-    file x from fastqref
+    file x from ref_peregrine
 
     output:
-    file "*_fastqc.{zip,html}" into iso_fastqc
+    file "*fasta" into peregrine
 
 	when:
     params.run == 'all' || params.run == 'peregrine'
