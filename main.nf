@@ -48,7 +48,9 @@ process fastqc {
 
 process multiqc {
     tag "multiqc.$x"
-	minput = fastqc.map { 
+
+	input:
+    tuple x, file('*') from fastqc.map { 
 	if (it =~/.*ref.*/){  
 		return ['ref', it]  
 	}else if(it =~/.*hic.*/){ 
@@ -60,9 +62,6 @@ process multiqc {
 	}  
 	} 
 	.groupTuple()
-
-	input:
-    file x, ('*') from minput
 
     output:
     file "multiqc_report.html" into multiqc
