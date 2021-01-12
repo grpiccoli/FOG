@@ -17,7 +17,8 @@ process bam2fastx {
 
 	output:
 	file "*.fastq.gz" into fastq
-	file "*${params.refname}*" into { ref_canu; ref_peregrine }
+	file "*$params.refname*" into ref_canu
+	file "*$params.refname*" into ref_peregrine
 
 	when:
 	params.run == 'all' || params.run == 'bam2fastx'
