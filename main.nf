@@ -7,7 +7,7 @@ bamiso = Channel.fromPath("$params.isoseq/**/*.bam", type: 'file').buffer(size:1
 bamref = Channel.fromPath("$params.ref/*.bam", type: 'file').buffer(size:1)
 bamccs = Channel.fromPath("$params.hifi/**/*.bam", type: 'file').buffer(size:1)
 hicref = Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file').buffer(size:2)
-bams = bamiso.mix(bamref,bamvar)
+bams = bamiso.mix(bamref,bamcss)
 
 process bam2fastx {
 	tag "bam2fastq.$x"
