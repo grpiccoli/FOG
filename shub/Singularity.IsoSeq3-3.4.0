@@ -16,8 +16,5 @@ From: continuumio/miniconda3:4.9.2-alpine
 %environment
 	export PATH=$PATH:/opt/conda/bin
 
-%test
-	isoseq3 -h
-
 %runscript
     exec "$@"

@@ -8,8 +8,7 @@ out_dir.mkdir()
 isoseq_reads = Channel.fromPath("$raw_isoseq/**/*.fastq.gz", type: 'file').buffer(size:1)
 
 process fastqc_isoseq {
-	label 'fastqc'
-	tag "$iso_sample"
+	tag "$iso_fastqc"
 
 	input:
 	file iso_sample from isoseq_reads
@@ -23,11 +22,25 @@ process fastqc_isoseq {
 	"""
 }
 
-process multiqc_isoseq {
-    label 'multiqc'
+process fastqc_hifi {
     tag "$iso_fastqc"
 
     input:
+    file iso_sample from isoseq_reads
+
+    output:
+    file "*_fastqc.{zip,html}" into iso_fastqc
+
+    script:
+    """
+    fastqc $iso_sample -t ${task.cpus} --noextract
+    """
+}
+
+process multiqc_isoseq {
+	tag "$iso_multiqc"
+
+	input:
 	file ('iso_fastqc/*') from iso_fastqc.collect().ifEmpty([])
 
 	output:
@@ -35,23 +48,23 @@ process multiqc_isoseq {
 	file "multiqc_data"
 
 	script:
-    """
-    multiqc .
-    """
+	"""
+	multiqc .
+	"""
 }
 
 workflow.onComplete {
 	println ( workflow.success ? """
-        Pipeline execution summary
-        ---------------------------
-        Completed at: ${workflow.complete}
-        Duration    : ${workflow.duration}
-        Success     : ${workflow.success}
-        workDir     : ${workflow.workDir}
-        exit status : ${workflow.exitStatus}
-        """ : """
-        Failed: ${workflow.errorReport}
-        exit status : ${workflow.exitStatus}
-        """
+		Pipeline execution summary
+		---------------------------
+		Completed at: ${workflow.complete}
+		Duration    : ${workflow.duration}
+		Success     : ${workflow.success}
+		workDir     : ${workflow.workDir}
+		exit status : ${workflow.exitStatus}
+		""" : """
+		Failed: ${workflow.errorReport}
+		exit status : ${workflow.exitStatus}
+		"""
  )
 }

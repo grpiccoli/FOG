@@ -22,16 +22,3 @@ From: alpine:3.12.3
 
 %environment
 	export PATH=$PATH:FastQC
-
-%test
-#cat << EOF |
-#@4e131bcf-f814-485a-b02f-3d133030b06e 
-#TTGTTATGCCGCTTCGTTCAGTTACGTATTGCTCGACGGTTCCACTTTGAACGTTTGCGTTCAAATACTATAACTAGTTTTGCTCTCGTTTTAATCTTCCCCGTCTCTCCCAAA
-#+
-#??????+(+*(%%#()&.67:58D8.10;01.4.8.)(*'(.-,2,?<79C97:?2()((,%()**())'&&IIICCCIIII**(%%#()&.67:58D8.10;01.4.8II?%?
-#EOF
-#fastqc stdin -q -t 2
-fastqc -h
-
-%runscript
-	fastqc "$@"

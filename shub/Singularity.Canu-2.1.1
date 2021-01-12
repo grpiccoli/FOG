@@ -18,9 +18,3 @@ From: alpine:3.12.3
 
 %environment
 	export PATH=$PATH:/root/canu-2.1.1/bin
-
-%test
-	canu
-
-%apprun canu
-	canu "$@"
