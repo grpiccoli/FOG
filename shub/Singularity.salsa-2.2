@@ -1,0 +1,20 @@
+Bootstrap: docker
+From: alpine:3.12.3
+
+%help
+	"SALSA v2.2 image"
+	salsa -h
+
+%labels
+	MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+	SPECIES "Bluff Oyster"
+	PROJECT "Flat Oyster Genomics"
+
+%post
+	apk add --no-cache gcc=9.3.0-r2 make=4.3-r0 g++=9.3.0-r2 \
+    build-base=0.5-r2 python3-dev=3.8.5-r0
+	wget -qO- https://github.com/marbl/SALSA/archive/v2.2.tar.gz | tar zxvf -
+	cd SALSA-2.2/
+
+%environment
+	export PATH=$PATH:FastQC
