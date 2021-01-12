@@ -51,8 +51,7 @@ process multiqc {
     tag "multiqc.$x"
 
     input:
-    file x, ('*') from 
-	fastqc.map { 
+    file x, ('*') from fastqc.map { 
 	if (it =~/.*ref.*/){  
 		return ['ref', it]  
 	}else if(it =~/.*hic.*/){ 
