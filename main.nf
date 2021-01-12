@@ -1,6 +1,4 @@
 #!/usr/bin/env nextflow
-params.run = 'all'
-
 out_dir = file(params.outdir)
 
 out_dir.mkdir()
