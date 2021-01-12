@@ -17,8 +17,7 @@ process bam2fastx {
 
 	output:
 	file "*.fastq.gz" into fastq
-	file "*$params.refname*" into ref_canu
-	file "*$params.refname*" into ref_peregrine
+	file "*$params.refname*" into ref_canu, ref_peregrine
 
 	when:
 	params.run == 'all' || params.run == 'bam2fastx'
@@ -49,9 +48,7 @@ process fastqc {
 
 process multiqc {
     tag "multiqc.$x"
-
-    input:
-    file x, files from fastqc.map { 
+	minput = fastqc.map { 
 	if (it =~/.*ref.*/){  
 		return ['ref', it]  
 	}else if(it =~/.*hic.*/){ 
@@ -63,6 +60,9 @@ process multiqc {
 	}  
 	} 
 	.groupTuple()
+
+	input:
+    file x, ('*') from minput
 
     output:
     file "multiqc_report.html" into multiqc
