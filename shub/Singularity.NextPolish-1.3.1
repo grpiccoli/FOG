@@ -1,0 +1,25 @@
+Bootstrap: docker
+From: alpine:3.12.3
+
+%help
+    "NextPolish v1.3.1 image"
+
+%labels
+    MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+    SPECIES "Bluff Oyster"
+    PROJECT "Flat Oyster Genomics"
+
+%environment
+	export PATH=$PATH:/root/NextPolish:/root/NextPolish/bin
+
+%post
+    apk add --no-cache gcc=9.3.0-r2 make=4.3-r0 g++=9.3.0-r2 \
+    build-base=0.5-r2 zlib-dev=1.2.11-r3 linux-headers=5.4.5-r1 \
+	python3=3.8.5-r0 py3-pip=20.1.1-r0 python3-dev=3.8.5-r0 \
+	ncurses-dev=6.2_p20200523-r0 bzip2-dev=1.0.8-r1 git=2.26.2-r0 xz-dev=5.2.5-r0
+	pip install psutil==5.8.0 drmaa==0.7.9
+	wget -qO- https://github.com/Nextomics/NextPolish/releases/download/v1.3.1/NextPolish.tgz | \
+	tar zxvf - 
+	cd NextPolish && make
+    apk del gcc make g++ build-base zlib-dev linux-headers python3-dev ncurses-dev bzip2-dev xz-dev
+	ln -s /usr/bin/python3 /usr/bin/python

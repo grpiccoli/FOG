@@ -1,0 +1,75 @@
+Jan-16 23:57:19.470 [main] DEBUG nextflow.cli.Launcher - $> nextflow run main.nf -with-dag flowchart.html
+Jan-16 23:57:19.551 [main] INFO  nextflow.cli.CmdRun - N E X T F L O W  ~  version 20.10.0
+Jan-16 23:57:19.561 [main] INFO  nextflow.cli.CmdRun - Launching `main.nf` [romantic_lichterman] - revision: 96abc4db1d
+Jan-16 23:57:19.583 [main] DEBUG nextflow.config.ConfigBuilder - Found config local: /home/rodriggu/FOG/nextflow.config
+Jan-16 23:57:19.584 [main] DEBUG nextflow.config.ConfigBuilder - Parsing config file: /home/rodriggu/FOG/nextflow.config
+Jan-16 23:57:19.605 [main] DEBUG nextflow.config.ConfigBuilder - Applying config profile: `standard`
+Jan-16 23:57:20.256 [main] DEBUG nextflow.Session - Session uuid: 251f1320-eb60-47e4-b7de-1e1e2bddd2d3
+Jan-16 23:57:20.256 [main] DEBUG nextflow.Session - Run name: romantic_lichterman
+Jan-16 23:57:20.256 [main] DEBUG nextflow.Session - Executor pool size: 6
+Jan-16 23:57:20.289 [main] DEBUG nextflow.cli.CmdRun - 
+  Version: 20.10.0 build 5430
+  Created: 01-11-2020 15:14 UTC (02-11-2020 04:14 NZDT)
+  System: Linux 5.4.0-58-generic
+  Runtime: Groovy 3.0.5 on OpenJDK 64-Bit Server VM 14.0.2+12-Ubuntu-120.04
+  Encoding: UTF-8 (UTF-8)
+  Process: 106001@rodriggu-Virtual-Machine [127.0.1.1]
+  CPUs: 6 - Mem: 11.3 GB (1.7 GB) - Swap: 0 (0)
+Jan-16 23:57:20.307 [main] DEBUG nextflow.Session - Work-dir: /home/rodriggu/FOG/work [ext2/ext3]
+Jan-16 23:57:20.307 [main] DEBUG nextflow.Session - Script base path does not exist or is not a directory: /home/rodriggu/FOG/bin
+Jan-16 23:57:20.344 [main] DEBUG nextflow.Session - Observer factory: TowerFactory
+Jan-16 23:57:20.346 [main] DEBUG nextflow.Session - Observer factory: DefaultObserverFactory
+Jan-16 23:57:20.464 [main] DEBUG nextflow.Session - Session start invoked
+Jan-16 23:57:20.799 [main] DEBUG nextflow.script.ScriptRunner - > Launching execution
+Jan-16 23:57:20.805 [main] DEBUG nextflow.Session - Workflow process names [dsl1]: pbipa, bam2fastx, flye, hifiasm, fastqc, peregrine, nextdonovo, canu, purge_dups, multiqc, pb_assembly
+Jan-16 23:57:20.842 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - files for syntax: glob; folder: /nfs/scratch/rodriggu/isoseq/; pattern: **/*.bam; options: [type:file]
+Jan-16 23:57:20.848 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - No such file: /nfs/scratch/rodriggu/isoseq/ -- Skipping visit
+Jan-16 23:57:20.877 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - files for syntax: glob; folder: /nfs/scratch/rodriggu/hifi/F20FTSAPHT092_OYSobgD/4W-MBC/; pattern: *.bam; options: [type:file]
+Jan-16 23:57:20.877 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - No such file: /nfs/scratch/rodriggu/hifi/F20FTSAPHT092_OYSobgD/4W-MBC/ -- Skipping visit
+Jan-16 23:57:20.878 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - files for syntax: glob; folder: /nfs/scratch/rodriggu/hifi/F20FTSAPHT092_OYSobgD/; pattern: **/*.bam; options: [type:file]
+Jan-16 23:57:20.878 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - No such file: /nfs/scratch/rodriggu/hifi/F20FTSAPHT092_OYSobgD/ -- Skipping visit
+Jan-16 23:57:20.879 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - files for syntax: glob; folder: /nfs/scratch/rodriggu/hi-c/Filter_SOAPnuke/Clean/4W-MBD/; pattern: **/*.fq.gz; options: [type:file]
+Jan-16 23:57:20.879 [PathVisitor-1] DEBUG nextflow.file.PathVisitor - No such file: /nfs/scratch/rodriggu/hi-c/Filter_SOAPnuke/Clean/4W-MBD/ -- Skipping visit
+Jan-16 23:57:20.929 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:bam2fastx` matches process bam2fastx
+Jan-16 23:57:20.931 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:20.931 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:20.938 [main] DEBUG nextflow.executor.Executor - [warm up] executor > slurm
+Jan-16 23:57:20.942 [main] DEBUG n.processor.TaskPollingMonitor - Creating task monitor for executor 'slurm' > capacity: 100; pollInterval: 5s; dumpInterval: 5m 
+Jan-16 23:57:20.945 [main] DEBUG n.executor.AbstractGridExecutor - Creating executor 'slurm' > queue-stat-interval: 1m
+Jan-16 23:57:20.998 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:fastqc` matches process fastqc
+Jan-16 23:57:20.999 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:20.999 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.025 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:multiqc` matches process multiqc
+Jan-16 23:57:21.025 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.025 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.029 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:canu` matches process canu
+Jan-16 23:57:21.030 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.030 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.035 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.035 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.040 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:peregrine` matches process peregrine
+Jan-16 23:57:21.041 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.041 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.046 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:hifiasm` matches process hifiasm
+Jan-16 23:57:21.046 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.046 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.050 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:pbipa` matches process pbipa
+Jan-16 23:57:21.050 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.050 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.056 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:flye` matches process flye
+Jan-16 23:57:21.056 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.056 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.059 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:nextdonovo` matches process nextdonovo
+Jan-16 23:57:21.060 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.060 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.062 [main] DEBUG nextflow.script.ProcessConfig - Config settings `withName:pb_assembly` matches process pb_assembly
+Jan-16 23:57:21.063 [main] DEBUG nextflow.executor.ExecutorFactory - << taskConfig executor: slurm
+Jan-16 23:57:21.063 [main] DEBUG nextflow.executor.ExecutorFactory - >> processorType: 'slurm'
+Jan-16 23:57:21.067 [main] DEBUG nextflow.script.ScriptRunner - > Await termination 
+Jan-16 23:57:21.067 [main] DEBUG nextflow.Session - Session await
+Jan-16 23:57:21.067 [main] DEBUG nextflow.Session - Session await > all process finished
+Jan-16 23:57:25.955 [main] DEBUG nextflow.Session - Session await > all barriers passed
+Jan-16 23:57:25.981 [main] DEBUG nextflow.trace.WorkflowStatsObserver - Workflow completed > WorkflowStats[succeededCount=0; failedCount=0; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=0; abortedCount=0; succeedDuration=0ms; failedDuration=0ms; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=0; peakCpus=0; peakMemory=0; ]
+Jan-16 23:57:26.122 [main] DEBUG nextflow.CacheDB - Closing CacheDB done
+Jan-16 23:57:26.125 [main] DEBUG nextflow.util.SpuriousDeps - AWS S3 uploader shutdown
+Jan-16 23:57:26.136 [main] DEBUG nextflow.script.ScriptRunner - > Execution complete -- Goodbye
