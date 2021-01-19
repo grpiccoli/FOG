@@ -3,10 +3,18 @@ out_dir = file(params.outdir)
 
 out_dir.mkdir()
 
-bamiso = Channel.fromPath("$params.isoseq/**/*.bam", type: 'file').buffer(size:1)
-bamref = Channel.fromPath("$params.ref/*.bam", type: 'file').buffer(size:1)
-bamccs = Channel.fromPath("$params.hifi/**/*.bam", type: 'file').buffer(size:1)
-hicref = Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file').buffer(size:2)
+//isoseq
+Channel.fromPath("$params.isoseq/**/*.bam", type: 'file')
+.buffer(size:1).set{bamiso}
+//hifi reference
+Channel.fromPath("$params.ref/*.bam", type: 'file')
+.buffer(size:1).set{bamref}
+//hifi variants
+Channel.fromPath("$params.hifi/**/*.bam", type: 'file')
+.buffer(size:1).set{bamccs}
+//hi-c reference
+Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file')
+.buffer(size:2).set{hicref}
 
 process bam2fastx {
 	tag "bam2fastq.$x"
@@ -203,11 +211,14 @@ process pb_assembly {
     """
 }
 
+canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+.into{i_mummer}
+
 process mummer {
 	tag "mummer.$x"
 
     input:
-    file x from canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+    file x from i_mummer
 
     output:
     file "*fasta" into mummer
@@ -222,39 +233,41 @@ process mummer {
     """
 }
 
-process quast {
-    tag "mummer.$x"
+process transposonpsi {
+    tag "transposonpsi.$x"
 
     input:
-    file x from canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+    file x from mummer
 
     output:
-    file "*fasta" into mummer
+    file "*fasta" into transposonpsi
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.run == 'all' || params.run == 'transposonpsi'
 
     script:
     """
-    Quast.py --large --skip-unaligned-mis-contigs    
+    transposonPSI.pl $x nuc
     """
 }
 
 process tetools {
-    tag "mummer.$x"
+    tag "tetools.$x"
 
     input:
-    file x from canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+    file x from i_tetools
 
     output:
-    file "*fasta" into mummer
+    file "*fasta" into transposonpsi
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.run == 'all' || params.run == 'tetools'
 
     script:
     """
-    Quast.py --large --skip-unaligned-mis-contigs    
+    BuildDatabase -name fog -engine ncbi $x
+    RepeatModeler -database fog -engine ncbi -pa ${task.cpus} -LTRStruct
+    RepeatMasker -lib fog-families.fa $x -pa ${task.cpus}
     """
 }
 
@@ -262,10 +275,10 @@ process minimap2 {
     tag "mummer.$x"
 
     input:
-    file x from canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+    file x from tetools
 
     output:
-    file "*fasta" into mummer
+    file "*fasta" into minimap2
 
     when:
     params.run == 'all' || params.run == 'mummer'
@@ -280,7 +293,7 @@ process purge_dups {
 	tag "purge_dups.$x"
 
     input:
-    file x from canu
+    file x from minimap2
 
     output:
     file "*fasta" into purge_dups
@@ -294,16 +307,70 @@ process purge_dups {
     """
 }
 
+process racon {
+	tag "racon.$x"
 
+    input:
+    file x from purge_dups
+
+    output:
+    file "*fasta" into racon
+
+    when:
+    params.run == 'all' || params.run == 'racon'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process nextpolish {
+	tag "nextpolish.$x"
+
+    input:
+    file x from racon
+
+    output:
+    file "*fasta" into nextpolish
+
+    when:
+    params.run == 'all' || params.run == 'nextpolish'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process quast {
+    tag "mummer.$x"
+
+    input:
+    file x from purge_dups
+
+    output:
+    file "*fasta" into quast
+
+    when:
+    params.run == 'all' || params.run == 'mummer'
+
+    script:
+    """
+    Quast.py --large --skip-unaligned-mis-contigs    
+    """
+}
+
+process 
 
 process merqury {
     tag "mummer.$x"
 
     input:
-    file x from canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+    file x from purge_dups
 
     output:
-    file "*fasta" into mummer
+    file "*fasta" into merqury
 
     when:
     params.run == 'all' || params.run == 'mummer'

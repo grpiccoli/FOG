@@ -1,0 +1,17 @@
+Bootstrap: docker
+From: dfam/tetools:1.2
+
+%help
+	"Dfam TE Tools v1.2 image"
+
+%labels
+	MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+	SPECIES "Bluff Oyster"
+	PROJECT "Flat Oyster Genomics"
+
+%post
+    wget -qO- http://git.genek.tv:3000/zhxd2/Share/src/master/linux_software/RepBaseRepeatMaskerEdition-20181026.tar.gz | tar xf -
+    addRepBase.pl -libdir Libraries/
+
+%environment
+    export LIBDIR=~/Libraries

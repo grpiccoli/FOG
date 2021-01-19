@@ -1,0 +1,21 @@
+Bootstrap: docker
+From: continuumio/miniconda3:4.9.2
+
+%help
+	"Dfam TE Tools v1.2 image"
+
+%labels
+	MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+	SPECIES "Bluff Oyster"
+	PROJECT "Flat Oyster Genomics"
+
+%post
+	apk add --no-cache git=2.26.2-r0
+	wget http://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.5.zip
+	echo "3524f101c0ab0bae77c7595983170a76  fastqc_v0.11.5.zip" | md5sum -cw -
+	unzip fastqc_v0.11.5.zip
+	chmod +x FastQC/fastqc
+	rm fastqc_v0.11.5.zip
+
+%environment
+	export PATH=$PATH:FastQC

@@ -3,6 +3,7 @@ From: alpine:3.12.3
 
 %help
     "NextDenovo v2.4.0 image"
+    nextDenovo --help
 
 %labels
     MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
@@ -15,7 +16,7 @@ From: alpine:3.12.3
 %post
     apk add --no-cache gcc=9.3.0-r2 make=4.3-r0 g++=9.3.0-r2 \
     build-base=0.5-r2 zlib-dev=1.2.11-r3 linux-headers=5.4.5-r1 \
-	python3=3.8.5-r0 py3=pip-20.1.1-r0 python3-dev=3.8.5-r0
+	python3=3.8.5-r0 py3-pip=20.1.1-r0 python3-dev=3.8.5-r0
 	pip install psutil==5.8.0 drmaa==0.7.9
 	wget -qO- https://github.com/Nextomics/NextDenovo/releases/download/v2.4.0/NextDenovo.tgz | \
 	tar zxvf - 
