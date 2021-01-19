@@ -212,7 +212,7 @@ process pb_assembly {
 }
 
 canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
-.into{i_mummer}
+.set{i_mummer}
 
 process mummer {
 	tag "mummer.$x"
@@ -255,10 +255,10 @@ process tetools {
     tag "tetools.$x"
 
     input:
-    file x from i_tetools
+    file x from transposonpsi
 
     output:
-    file "*fasta" into transposonpsi
+    file "*fasta" into tetools
 
     when:
     params.run == 'all' || params.run == 'tetools'
@@ -332,10 +332,176 @@ process nextpolish {
     file x from racon
 
     output:
-    file "*fasta" into nextpolish
+    file "*fasta" into i_allhic, i_marginphase, i_falconphase, i_hirise
 
     when:
     params.run == 'all' || params.run == 'nextpolish'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process allhic {
+	tag "nextpolish.$x"
+
+    input:
+    file x from i_allhic
+
+    output:
+    file "*fasta" into allhic
+
+    when:
+    params.run == 'all' || params.run == 'allhic'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process marginphase {
+	tag "nextpolish.$x"
+
+    input:
+    file x from i_marginphase
+
+    output:
+    file "*fasta" into marginphase
+
+    when:
+    params.run == 'all' || params.run == 'marginphase'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process falconphase {
+	tag "nextpolish.$x"
+
+    input:
+    file x from i_falconphase
+
+    output:
+    file "*fasta" into falconphase
+
+    when:
+    params.run == 'all' || params.run == 'falconphase'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process hirise {
+	tag "nextpolish.$x"
+
+    input:
+    file x from i_hirise
+
+    output:
+    file "*fasta" into hirise
+
+    when:
+    params.run == 'all' || params.run == 'hirise'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+allhic.mix(marginphase, falconphase, hirise).into{ i_deepv; i_haplotypo }
+
+process deepv {
+	tag "deepv.$x"
+
+    input:
+    file x from i_deepv
+
+    output:
+    file "*fasta" into deepv
+
+    when:
+    params.run == 'all' || params.run == 'hirise'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process haplotypo {
+	tag "haplotypo.$x"
+
+    input:
+    file x from i_haplotypo
+
+    output:
+    file "*fasta" into haplotypo
+
+    when:
+    params.run == 'all' || params.run == 'hirise'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+deepv.mix(haplotypo).set{ i_whatshap }
+
+process whatshap {
+	tag "whatshap.$x"
+
+    input:
+    file x from i_whatshap
+
+    output:
+    file "*fasta" into whatshap
+
+    when:
+    params.run == 'all' || params.run == 'whatshap'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process rephase {
+    tag "rephase.$x"
+
+    input:
+    file x from whatshap
+
+    output:
+    file "*fasta" into rephase
+
+    when:
+    params.run == 'all' || params.run == 'rephase'
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process purge_haplotigs {
+    tag "purge_haplotigs.$x"
+
+    input:
+    file x from rephase
+
+    output:
+    file "*fasta" into i_quast, i_mercury, i_genomeqc, i_assembly_stats, final_ref
+
+    when:
+    params.run == 'all' || params.run == 'purge_haplotigs'
 
     script:
     """
@@ -347,7 +513,7 @@ process quast {
     tag "mummer.$x"
 
     input:
-    file x from purge_dups
+    file x from i_quast
 
     output:
     file "*fasta" into quast
@@ -361,16 +527,50 @@ process quast {
     """
 }
 
-process 
-
 process merqury {
     tag "mummer.$x"
 
     input:
-    file x from purge_dups
+    file x from i_mercury
 
     output:
     file "*fasta" into merqury
+
+    when:
+    params.run == 'all' || params.run == 'mummer'
+
+    script:
+    """
+    Quast.py --large --skip-unaligned-mis-contigs    
+    """
+}
+
+process genomeqc {
+    tag "mummer.$x"
+
+    input:
+    file x from i_genomeqc
+
+    output:
+    file "*fasta" into genomeqc
+
+    when:
+    params.run == 'all' || params.run == 'mummer'
+
+    script:
+    """
+    Quast.py --large --skip-unaligned-mis-contigs    
+    """
+}
+
+process assembly_stats {
+    tag "mummer.$x"
+
+    input:
+    file x from i_assembly_stats
+
+    output:
+    file "*fasta" into assembly_stats
 
     when:
     params.run == 'all' || params.run == 'mummer'
