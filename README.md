@@ -5,4 +5,6 @@ New Zealand Flat Oyster Genomics
 
 ### [PIPELINE](https://kiwiepic.github.io/FOG/pages/flowchart.html)
 
+https://kiwiepic.github.io/FOG/pages/flowchart.png
+
 ### ARCHITECTURE
