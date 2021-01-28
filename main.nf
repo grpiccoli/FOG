@@ -5,7 +5,7 @@ out_dir.mkdir()
 
 //isoseq
 Channel.fromPath("$params.isoseq/**/*.bam", type: 'file')
-.buffer(size:1).into{bamiso,ibamiso}
+.buffer(size:1).into{bamiso;ibamiso}
 //hifi reference
 Channel.fromPath("$params.ref/*.bam", type: 'file')
 .buffer(size:1).into{bamref;ibamref}
