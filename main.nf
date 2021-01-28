@@ -8,10 +8,10 @@ Channel.fromPath("$params.isoseq/**/*.bam", type: 'file')
 .buffer(size:1).into{bamiso,ibamiso}
 //hifi reference
 Channel.fromPath("$params.ref/*.bam", type: 'file')
-.buffer(size:1).into{bamref,ibamref}
+.buffer(size:1).into{bamref;ibamref}
 //hifi variants
 Channel.fromPath("$params.hifi/**/*.bam", type: 'file')
-.buffer(size:1).into{bamccs,ibamccs}
+.buffer(size:1).into{bamccs;ibamccs}
 //hi-c reference
 Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file')
 .buffer(size:2).set{hicref}
