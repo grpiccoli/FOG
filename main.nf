@@ -5,16 +5,34 @@ out_dir.mkdir()
 
 //isoseq
 Channel.fromPath("$params.isoseq/**/*.bam", type: 'file')
-.buffer(size:1).set{bamiso}
+.buffer(size:1).into{bamiso,ibamiso}
 //hifi reference
 Channel.fromPath("$params.ref/*.bam", type: 'file')
-.buffer(size:1).set{bamref}
+.buffer(size:1).into{bamref,ibamref}
 //hifi variants
 Channel.fromPath("$params.hifi/**/*.bam", type: 'file')
-.buffer(size:1).set{bamccs}
+.buffer(size:1).into{bamccs,ibamccs}
 //hi-c reference
 Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file')
 .buffer(size:2).set{hicref}
+
+process pbbam {
+	tag "pbbam.$x"
+
+	input:
+	file x from ibamiso.mix(ibamref,ibamccs)
+
+	output:
+	file "*.pbi" into pbi
+
+	when:
+	params.run == 'all' || params.run == 'pbbam'
+
+	script:
+	"""
+	pbindex $x
+	"""    
+}
 
 process bam2fastx {
 	tag "bam2fastq.$x"
