@@ -4,52 +4,59 @@ out_dir = file(params.outdir)
 out_dir.mkdir()
 
 //isoseq
-Channel.fromPath("$params.isoseq/**/*.bam", type: 'file')
-.buffer(size:1).into{bamiso;ibamiso}
+Channel.fromPath("$params.input/isoseq_*.bam", type: 'file')
+.buffer(size:1).set{bamiso}
+//hifi
+Channel.fromPath("$params.input/hifi_*.bam", type: 'file')
+.buffer(size:1).set{bamccs}
 //hifi reference
-Channel.fromPath("$params.ref/*.bam", type: 'file')
-.buffer(size:1).into{bamref;ibamref}
-//hifi variants
-Channel.fromPath("$params.hifi/**/*.bam", type: 'file')
-.buffer(size:1).into{bamccs;ibamccs}
+Channel.fromPath("$params.input/ref_*.bam", type: 'file')
+.buffer(size:1).set{bamref}
 //hi-c reference
-Channel.fromPath("$params.hic/**/*.fq.gz", type: 'file')
+Channel.fromPath("$params.input/hici_*.fq.gz", type: 'file')
 .buffer(size:2).set{hicref}
 
 process pbbam {
 	tag "pbbam.$x"
 
 	input:
-	file x from ibamiso.mix(ibamref,ibamccs)
+	file x from bamiso.mix(bamref,bamccs)
 
 	output:
 	file "*.pbi" into pbi
 
 	when:
-	params.run == 'all' || params.run == 'pbbam'
+	params.all || params.pbbam
 
 	script:
 	"""
-	pbindex $x
-	"""    
+    if ! test -f "$params.input/${x}.pbi"
+    then
+        pbindex $x
+        mv *.pbi $params.input
+    fi
+    ln -s "$params.input/${x}.pbi" .
+	"""
 }
 
 process bam2fastx {
 	tag "bam2fastq.$x"
 
 	input:
-	file x from bamiso.mix(bamref,bamccs)
+    file x from pbi
 
 	output:
 	file "*.fastq.gz" into i_fastqc, i_decontamination
 
 	when:
-	params.run == 'all' || params.run == 'bam2fastx'
+	params.all || params.bam2fastx
 
 	script:
 	"""
-    X=\$(echo 4W-MBC/ccs.bam | awk -v FS='/' '{print \$(NF-1)}')
-	bam2fastq $x -o \$X
+    bam="$x"
+    bam="\${bam%.*}"
+    ln -s "$params.input/\$bam" .
+	bam2fastq \$bam -o \$bam
 	"""
 }
 
@@ -63,7 +70,7 @@ process fastqc {
     file "*_fastqc.{zip,html}" into fastqc
 
 	when:
-	params.run == 'all' || params.run == 'fastqc'
+	params.all || params.fastqc
 
     script:
     """
@@ -76,13 +83,13 @@ process multiqc {
 
 	input:
     tuple x, file('*') from fastqc.map { 
-	if (it =~/.*ref.*/){  
+	if (it =~/ref/){  
 		return ['ref', it]  
-	}else if(it =~/.*hic.*/){ 
+	}else if(it =~/hic/){ 
 		return ['hic', it]  
-	}else if(it =~/.*ccs.*/){ 
+	}else if(it =~/hifi/){ 
 		return ['css', it]  
-	}else if(it =~/.*iso.*/){ 
+	}else if(it =~/isoseq/){ 
 		return ['iso', it]  
 	}  
 	} 
@@ -92,7 +99,7 @@ process multiqc {
     file "multiqc_report.html" into multiqc
 
 	when:
-    params.run == 'all' || params.run == 'multiqc'
+    params.all || params.multiqc
 
     script:
     """
@@ -111,7 +118,7 @@ process yiweiniu_decontamination {
 	file "*$params.refname*" into ref_canu, ref_peregrine, ref_hifiasm, ref_flye, ref_pbipa, ref_nextdenovo, ref_pb_assembly
 
 	when:
-    params.run == 'all' || params.run == 'canu'
+    params.all || params.canu
 
 	script:
 	"""
@@ -129,7 +136,7 @@ process canu {
 	file "*fasta" into canu, quast_canu, genomeqc_canu
 
 	when:
-    params.run == 'all' || params.run == 'canu'
+    params.all || params.canu
 
 	script:
 	"""
@@ -147,7 +154,7 @@ process peregrine {
     file "*fasta" into peregrine, quast_peregrine, genomeqc_peregrine
 
 	when:
-    params.run == 'all' || params.run == 'peregrine'
+    params.all || params.peregrine
 
     script:
     """
@@ -165,7 +172,7 @@ process hifiasm {
 	file "ref.asm" into hifiasm, quast_hifiasm, genomeqc_hifiasm
 
 	when:
-	params.run == 'all' || params.run == 'hifiasm'
+	params.all || params.hifiasm
 
 	script:
 	"""
@@ -183,7 +190,7 @@ process pbipa {
     file "ref.asm" into pbipa, quast_pbipa, genomeqc_pbipa
 
     when:
-    params.run == 'all' || params.run == 'pbipa'
+    params.all || params.pbipa
 
     script:
     """
@@ -201,7 +208,7 @@ process flye {
     file "ref.asm" into flye, quast_flye, genomeqc_flye
 
     when:
-    params.run == 'all' || params.run == 'flye'
+    params.all || params.flye
 
     script:
     """
@@ -220,7 +227,7 @@ process nextdonovo {
     file "ref.asm" into nextdenovo, quast_nextdenovo, genomeqc_nextdenovo
 
     when:
-    params.run == 'all' || params.run == 'nextdenovo'
+    params.all || params.nextdenovo
 
     script:
     """
@@ -240,7 +247,7 @@ process pb_assembly {
     file "*fasta" into pb_assembly, quast_pb, genomeqc_pb
 
     when:
-    params.run == 'all' || params.run == 'pb_assembly'
+    params.all || params.pb_assembly
 
     script:
     """
@@ -261,7 +268,7 @@ process mummer {
     file "*fasta" into mummer
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.all || params.mummer
 
     script:
     """
@@ -280,7 +287,7 @@ process transposonpsi {
     file "*fasta" into transposonpsi
 
     when:
-    params.run == 'all' || params.run == 'transposonpsi'
+    params.all || params.transposonpsi
 
     script:
     """
@@ -298,7 +305,7 @@ process tetools {
     file "*fasta" into tetools
 
     when:
-    params.run == 'all' || params.run == 'tetools'
+    params.all || params.tetools
 
     script:
     """
@@ -318,7 +325,7 @@ process minimap2 {
     file "*fasta" into minimap2
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.all || params.mummer
 
     script:
     """
@@ -336,7 +343,7 @@ process purge_dups {
     file "*fasta" into purge_dups, quast_dups, genomeqc_dups
 
     when:
-    params.run == 'all' || params.run == 'purge_dups'
+    params.all || params.purge_dups
 
     script:
     """
@@ -354,7 +361,7 @@ process racon {
     file "*fasta" into racon, quast_racon, genomeqc_racon
 
     when:
-    params.run == 'all' || params.run == 'racon'
+    params.all || params.racon
 
     script:
     """
@@ -372,7 +379,7 @@ process nextpolish {
     file "*fasta" into i_allhic, i_marginphase, i_falconphase, i_hirise, i_dipasm, quast_nextpolish, genomeqc_nextpolish
 
     when:
-    params.run == 'all' || params.run == 'nextpolish'
+    params.all || params.nextpolish
 
     script:
     """
@@ -390,7 +397,7 @@ process allhic {
     file "*fasta" into allhic, mercury_allhic
 
     when:
-    params.run == 'all' || params.run == 'allhic'
+    params.all || params.allhic
 
     script:
     """
@@ -408,7 +415,7 @@ process marginphase {
     file "*fasta" into marginphase, mercury_marginphase
 
     when:
-    params.run == 'all' || params.run == 'marginphase'
+    params.all || params.marginphase
 
     script:
     """
@@ -426,7 +433,7 @@ process falconphase {
     file "*fasta" into falconphase, mercury_falconphase
 
     when:
-    params.run == 'all' || params.run == 'falconphase'
+    params.all || params.falconphase
 
     script:
     """
@@ -444,7 +451,7 @@ process hirise {
     file "*fasta" into hirise, mercury_hirise
 
     when:
-    params.run == 'all' || params.run == 'hirise'
+    params.all || params.hirise
 
     script:
     """
@@ -462,7 +469,7 @@ process dipasm {
     file "*fasta" into dipasm, mercury_dipasm
 
     when:
-    params.run == 'all' || params.run == 'hirise'
+    params.all || params.hirise
 
     script:
     """
@@ -483,7 +490,7 @@ process haplotypo {
     file "*fasta" into haplotypo
 
     when:
-    params.run == 'all' || params.run == 'hirise'
+    params.all || params.hirise
 
     script:
     """
@@ -501,7 +508,7 @@ process purge_haplotigs {
     file "*fasta" into final_ref, quast_purge_haplotigs, mercury_purge_haplotigs, genomeqc_purge_haplotigs, assembly_stats_purge_haplotigs
 
     when:
-    params.run == 'all' || params.run == 'purge_haplotigs'
+    params.all || params.purge_haplotigs
 
     script:
     """
@@ -520,7 +527,7 @@ process quast {
     file "other" into squat
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.all || params.mummer
 
     script:
     """
@@ -538,7 +545,7 @@ process icarus {
     file "*fasta" into icarus
 
     when:
-    params.run == 'all' || params.run == 'icarus'
+    params.all || params.icarus
 
     script:
     """
@@ -556,7 +563,7 @@ process genomeqc {
     file "*fasta" into genomeqc
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.all || params.mummer
 
     script:
     """
@@ -574,7 +581,7 @@ process merqury {
     file "*fasta" into merqury
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.all || params.mummer
 
     script:
     """
@@ -592,7 +599,7 @@ process assembly_stats {
     file "*fasta" into assembly_stats
 
     when:
-    params.run == 'all' || params.run == 'mummer'
+    params.all || params.mummer
 
     script:
     """

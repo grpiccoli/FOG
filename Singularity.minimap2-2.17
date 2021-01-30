@@ -1,0 +1,22 @@
+Bootstrap: docker
+From: alpine:3.12.3
+
+%help
+    "Minimap2 v2.17 image"
+    echo "commands available"
+
+%labels
+    MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+    SPECIES "Bluff Oyster"
+    PROJECT "Flat Oyster Genomics"
+
+%post
+    apk add --no-cache build-base=0.5-r2 zlib-dev=1.2.11-r3 zlib-static=1.2.11-r3
+    wget -qO- https://github.com/lh3/minimap2/archive/v2.17.tar.gz | tar -xvzf -
+	cd minimap2-2.17
+	make -j1 CFLAGS='-O2 -Wc++-compat -static' LDFLAGS='-static' CPPFLAGS='-static -DHAVE_KALLOC'
+	strip minimap2
+	mv minimap2 /usr/local/bin
+	cd
+	rm -rf minimap*
+	apk del build-base zlib-dev zlib-static
