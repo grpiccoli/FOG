@@ -1,0 +1,48 @@
+Bootstrap: docker
+From: alpine:3.12.3
+
+%help
+    "Quality Control"
+
+%labels
+    MAINTAINER "Guillermo Piccoli <grpiccoli@gmail.com>"
+    SPECIES "Bluff Oyster"
+    PROJECT "Flat Oyster Genomics"
+
+%post
+    #SMRT
+	export VERSION=9.0.0.92188
+	export SMRT_USER=smrtanalysis
+	export SMRT=/opt/pacbio
+	export SMRT_ROOT=$SMRT/smrtlink
+	apk add --no-cache rsync=3.1.3-r3 build-base=0.5-r2 sudo=1.9.5p2-r0 bash=5.0.17-r0 dpkg=1.20.0-r0
+	if ! grep -c "$SMRT_USER:" /etc/passwd
+	then
+		echo '%users ALL=(ALL) ALL' > /etc/sudoers.d/users
+        adduser -G users -h /home/$SMRT_USER -s /bin/bash -D $SMRT_USER
+		echo "$SMRT_USER:PacBio" | chpasswd
+	else
+        echo "user already exists"
+	fi
+	if [ ! -d $SMRT ]
+	then
+        mkdir $SMRT
+        chown smrtanalysis:users $SMRT
+	fi
+	if [ -d $SMRT_ROOT ] 
+	then 
+        rm -rf $SMRT_ROOT
+	fi
+	su $SMRT_USER
+    cd $SMRT
+	wget https://downloads.pacbcloud.com/public/software/installers/smrtlink_${VERSION}.zip
+    unzip smrtlink_${VERSION}.zip
+    md5sum -c -w $SMRT/smrtlink_${VERSION}.run.md5
+	sed -i '498s/readlink -m/readlink -f/' smrtlink_${VERSION}.run
+	./smrtlink_${VERSION}.run --rootdir $SMRT_ROOT --smrttools-only
+	ln -fs $SMRT_ROOT/install/smrtlink-release_9.0.0.92188/bundles/smrttools/install/smrttools-release_9.0.0.92188/private/otherbins/runtime/bin/* $SMRT/bin
+	#ln -fs $SMRT_ROOT/install/smrtlink-release_9.0.0.92188/bundles/smrttools/install/smrttools-release_9.0.0.92188/private/pacbio/....... $SMRT/bin
+	echo 'export PATH=$PATH:$SMRT/bin' >> $SINGULARITY_ENVIRONMENT
+
+%runscript
+    exec "$@"

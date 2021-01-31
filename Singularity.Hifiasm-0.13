@@ -10,8 +10,7 @@ From: alpine:3.12.3
     PROJECT "Flat Oyster Genomics"
 
 %post
-	apk add --no-cache gcc=9.3.0-r2 make=4.3-r0 g++=9.3.0-r2 \
-	build-base=0.5-r2 zlib-dev=1.2.11-r3
+	apk add --no-cache build-base=0.5-r2 zlib-dev=1.2.11-r3
 	wget https://github.com/chhylp123/hifiasm/archive/v0.13.zip
 	echo "6907d810ae040618f248d8e3af20faf8  v0.13.zip" | md5sum -cw -
 	unzip v0.13.zip

@@ -35,9 +35,7 @@ vim Singularity
 echo "# $paramR" >> README.md
 touch .gitignore
 git init
-git add README.md
-git add Singularity
-git add .gitignore
+git add -A
 git config --global user.name $paramU
 git config --global user.email $paramE
 git commit -a -m "Initial"

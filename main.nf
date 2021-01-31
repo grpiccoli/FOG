@@ -1,23 +1,25 @@
 #!/usr/bin/env nextflow
 out_dir = file(params.outdir)
-
 out_dir.mkdir()
 
 //isoseq
 Channel.fromPath("$params.input/isoseq_*.bam", type: 'file')
-.buffer(size:1).set{bamiso}
+.buffer(size:1).into{qiso;bamiso}
 //hifi
 Channel.fromPath("$params.input/hifi_*.bam", type: 'file')
-.buffer(size:1).set{bamccs}
+.buffer(size:1).into{qccs;bamccs}
 //hifi reference
 Channel.fromPath("$params.input/ref_*.bam", type: 'file')
-.buffer(size:1).set{bamref}
+.buffer(size:1).into{qref;bamref}
 //hi-c reference
 Channel.fromPath("$params.input/hici_*.fq.gz", type: 'file')
-.buffer(size:2).set{hicref}
+.buffer(size:2).into{qhic;hicref}
 
+/*
 process pbbam {
 	tag "pbbam.$x"
+    container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
+    publishDir params.input
 
 	input:
 	file x from bamiso.mix(bamref,bamccs)
@@ -25,22 +27,16 @@ process pbbam {
 	output:
 	file "*.pbi" into pbi
 
-	when:
-	params.all || params.pbbam
-
 	script:
 	"""
-    if ! test -f "$params.input/${x}.pbi"
-    then
-        pbindex $x
-        mv *.pbi $params.input
-    fi
-    ln -s "$params.input/${x}.pbi" .
+    pbindex $x
 	"""
 }
 
 process bam2fastx {
 	tag "bam2fastq.$x"
+    container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
+    publishDir out_dir
 
 	input:
     file x from pbi
@@ -48,58 +44,49 @@ process bam2fastx {
 	output:
 	file "*.fastq.gz" into i_fastqc, i_decontamination
 
-	when:
-	params.all || params.bam2fastx
-
 	script:
 	"""
     bam="$x"
     bam="\${bam%.*}"
-    ln -s "$params.input/\$bam" .
-	bam2fastq \$bam -o \$bam
+    ln -s "$workflow.launchDir/$params.input/\$bam" .
+    bam2fastq \$bam -o "\${bam%.*}"
 	"""
 }
+*/
 
 process fastqc {
     tag "fastqc.$x"
+    //container "$params.bio/fastqc:0.11.9--0"
+    container "$params.fog/fastqc:0.11.9"
 
     input:
-    file x from i_fastqc.mix(hicref)
+    file x from qiso.mix(qref,qccs,qhic)
 
     output:
-    file "*_fastqc.{zip,html}" into fastqc
-
-	when:
-	params.all || params.fastqc
+    file "*_fastqc.zip" into fastqc
 
     script:
     """
-    fastqc $x -t ${task.cpus} --noextract
+    if [[ "$x" == *"bam"* ]];
+    then
+        format=bam
+    else
+        format=fasta
+    fi
+    fastqc -t $task.cpus -f \$format $x
     """
 }
 
 process multiqc {
     tag "multiqc.$x"
+    container "$params.bio/multiqc:1.9--py_1"
+    publishDir out_dir
 
 	input:
-    tuple x, file('*') from fastqc.map { 
-	if (it =~/ref/){  
-		return ['ref', it]  
-	}else if(it =~/hic/){ 
-		return ['hic', it]  
-	}else if(it =~/hifi/){ 
-		return ['css', it]  
-	}else if(it =~/isoseq/){ 
-		return ['iso', it]  
-	}  
-	} 
-	.groupTuple()
+    file "fastqc/*" from fastqc.collect().ifEmpty([])
 
     output:
     file "multiqc_report.html" into multiqc
-
-	when:
-    params.all || params.multiqc
 
     script:
     """
@@ -111,7 +98,7 @@ process yiweiniu_decontamination {
 	tag "canu.$x"
 
 	input:
-	file x from i_decontamination
+	file x from bamiso.mix(bamref,bamccs,hicref)
 
 	output:
     file "fastq" into all
