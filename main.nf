@@ -3,17 +3,20 @@ out_dir = file(params.outdir)
 out_dir.mkdir()
 
 //isoseq
-Channel.fromPath("$params.input/isoseq_*.bam", type: 'file')
-.buffer(size:1).into{qiso;bamiso}
+Channel.fromPath("$params.input/rnavar_*.bam", type: 'file')
+.buffer(size:1).into{qrna;bamrna}
 //hifi
-Channel.fromPath("$params.input/hifi_*.bam", type: 'file')
-.buffer(size:1).into{qccs;bamccs}
+Channel.fromPath("$params.input/dnavar_*.bam", type: 'file')
+.buffer(size:1).into{qdna;bamdna}
 //hifi reference
 Channel.fromPath("$params.input/ref_*.bam", type: 'file')
 .buffer(size:1).into{qref;bamref}
 //hi-c reference
-Channel.fromPath("$params.input/hici_*.fq.gz", type: 'file')
+Channel.fromPath("$params.input/hic_*.fq.gz", type: 'file')
 .buffer(size:2).into{qhic;hicref}
+//Genomics_03\Tarakihi\TARdn2\Hifi\4_filter_conta_preassembly\refseq
+Channel.fromPath("$params.input/*.fasta", type: 'file')
+.buffer(size:1).set{contaminants}
 
 /*
 process pbbam {
@@ -56,11 +59,12 @@ process bam2fastx {
 
 process fastqc {
     tag "fastqc.$x"
-    //container "$params.bio/fastqc:0.11.9--0"
-    container "$params.fog/fastqc:0.11.9"
+    //error
+    container "$params.bio/fastqc:0.11.9--0"
+    //container "$params.fog/fastqc:0.11.9"
 
     input:
-    file x from qiso.mix(qref,qccs,qhic)
+    file x from qdna.mix(qref,qrna,qhic)
 
     output:
     file "*_fastqc.zip" into fastqc
@@ -71,7 +75,7 @@ process fastqc {
     then
         format=bam
     else
-        format=fasta
+        format=fastq
     fi
     fastqc -t $task.cpus -f \$format $x
     """
@@ -94,27 +98,54 @@ process multiqc {
     """
 }
 
-process yiweiniu_decontamination {
-	tag "canu.$x"
+process pbmm2_icontaminants {
+	tag "pbmm2_decontamination.$x"
+    publishDir params.input
 
 	input:
-	file x from bamiso.mix(bamref,bamccs,hicref)
+    file c from contaminants
+
+	output:
+    file "*ccs.mmi" into i_ccs
+    file "*isoseq.mmi" into i_isoseq
+
+	script:
+	"""
+    pbmm2 index --preset CCS $c ${c}_ccs.mmi
+    pbmm2 index --preset ISOSEQ $c ${c}_isoseq.mmi
+	"""
+}
+
+process pbmm2_mcontaminats {
+	tag "pbmm2_mcontaminants.$x"
+
+	input:
+	file x from bamref.mix(bamdna,bamrna)
+    file iccs from i_ccs.collect()
+    file iisoseq from i_isoseq.collect()
 
 	output:
     file "fastq" into all
 	file "*$params.refname*" into ref_canu, ref_peregrine, ref_hifiasm, ref_flye, ref_pbipa, ref_nextdenovo, ref_pb_assembly
 
-	when:
-    params.all || params.canu
-
 	script:
 	"""
-	canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    memory=`echo "${task.memory}" | sed 's/[^0-9]//g'`G
+    preset=`echo ref_4W_A_hifi.bam | cut -d"_" -f4 | awk -F '.' '{ print toupper(\$1) }'`
+    if [[ preset == "isoseq" ]];
+    then
+        index=$iisoseq
+    else
+        index=$iccs
+    fi
+	pbmm2 align \$index $x ${x}.out.bam 
+    #--sort -J ${task.cpus} -m \$memory
 	"""
 }
 
 process canu {
 	tag "canu.$x"
+    container "${params.bio}/canu:2.1.1--he1b5a44_0"
 
 	input:
 	file x from ref_canu
