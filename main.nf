@@ -15,47 +15,14 @@ Channel.fromPath("$params.input/ref_*.bam", type: 'file')
 Channel.fromPath("$params.input/hic_*.fq.gz", type: 'file')
 .buffer(size:2).into{qhic;hicref}
 //Genomics_03\Tarakihi\TARdn2\Hifi\4_filter_conta_preassembly\refseq
-Channel.fromPath("$params.input/*.fasta", type: 'file')
-.buffer(size:1).set{contaminants}
-
-/*
-process pbbam {
-	tag "pbbam.$x"
-    container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
-    publishDir params.input
-
-	input:
-	file x from bamiso.mix(bamref,bamccs)
-
-	output:
-	file "*.pbi" into pbi
-
-	script:
-	"""
-    pbindex $x
-	"""
-}
-
-process bam2fastx {
-	tag "bam2fastq.$x"
-    container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
-    publishDir out_dir
-
-	input:
-    file x from pbi
-
-	output:
-	file "*.fastq.gz" into i_fastqc, i_decontamination
-
-	script:
-	"""
-    bam="$x"
-    bam="\${bam%.*}"
-    ln -s "$workflow.launchDir/$params.input/\$bam" .
-    bam2fastq \$bam -o "\${bam%.*}"
-	"""
-}
-*/
+contaminants=file("$params.input/contaminants.fasta")
+repbase=file("$params.input/RepeatMasker*.fasta")
+out_dcn="$out_dir/1_decontamination"
+out_asm="$out_dir/2_assemblers"
+out_rpt="$out_dir/3_repeat_analysis"
+out_pol="$out_dir/4_polishing"
+out_phs="$out_dir/5_phasing"
+out_rph="$out_dir/6_rephasing"
 
 process fastqc {
     tag "fastqc.$x"
@@ -84,7 +51,7 @@ process fastqc {
 process multiqc {
     tag "multiqc.$x"
     container "$params.bio/multiqc:1.9--py_1"
-    publishDir out_dir
+    publishDir params.input
 
 	input:
     file "fastqc/*" from fastqc.collect().ifEmpty([])
@@ -118,6 +85,7 @@ process pbmm2_icontaminants {
 
 process pbmm2_mcontaminats {
 	tag "pbmm2_mcontaminants.$x"
+    publishDir out_dcn
 
 	input:
 	file x from bamref.mix(bamdna,bamrna)
@@ -125,8 +93,7 @@ process pbmm2_mcontaminats {
     file iisoseq from i_isoseq.collect()
 
 	output:
-    file "fastq" into all
-	file "*$params.refname*" into ref_canu, ref_peregrine, ref_hifiasm, ref_flye, ref_pbipa, ref_nextdenovo, ref_pb_assembly
+    file "*cont.bam" into pbcont
 
 	script:
 	"""
@@ -138,32 +105,147 @@ process pbmm2_mcontaminats {
     else
         index=$iccs
     fi
-	pbmm2 align \$index $x ${x}.out.bam 
-    #--sort -J ${task.cpus} -m \$memory
+	pbmm2 align \$index $x ${x}.cont.bam --sort -j ${task.cpus} -J ${task.cpus} -m \$memory
+	"""
+}
+
+process samtools_decon {
+	tag "samtools_decon.$x"
+    publishDir out_dcn
+
+	input:
+	file x from pbcont
+
+	output:
+    file "*decon.bam" into decon
+    file "*.con" into con
+    file "*.cnt" into cnt
+
+	script:
+	"""
+    bam=`echo "$x" | sed 's/\\.cont\\.bam\$//'`
+    ln -s "$workflow.launchDir/$params.input/\$bam" .
+    samtools view $x | cut -f 1 > ${x}.con
+    samtools view -h \$bam | grep -vf ${x}.con | samtools view -bS -o \${bam%.*}.decon.bam -
+    samtools view -c \$bam > ${x}.cnt
+	"""
+}
+
+process gnuplot_decon {
+	tag "r_graphdecon.$x"
+    publishDir out_dcn
+
+	input:
+	file x from con
+    file n from cnt
+
+	output:
+    file "*pdf"
+    file "*dat"
+    file "*plg"
+
+	script:
+	"""
+    data=dataframe.dat
+    n=`cat $n`
+    cat $x | cut -d"_" -f1 | sort | uniq -c | sort -k1nr,2n | awk -F' ' -v cnt=0 -v num=\$n '{print cnt"\\t"\$2"\\t"\$1/num;cnt++;}' > \$data
+    tee -a tmp.plg <<EOT
+    set terminal pdfcairo enhanced color notransparent
+    set output '${x}.pdf'
+    set key noautotitle
+    set xlabel "Taxonomic Order"
+    set ylabel "Read Count"
+    set title "Read Contamination by Taxonomic Order"
+    set key box top left spacing 1.5
+    plot '\$data' using 1:3:xtic(2) with boxes
+    EOT
+    gnuplot tmp.plg
+	"""
+}
+
+decon.branch {
+    ref: it =~/ref/
+    dnavar: it =~/dnavar/
+    rnavar: it =~/dnavar/
+}.set{decon}
+
+decon.ref.into{ref_pbbam; ref_peregrine; ref_hifiasm; ref_flye; ref_pbipa; ref_nextdenovo; ref_pb_assembly}
+
+process pbbam {
+	tag "pbbam.$x"
+    container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
+    publishDir params.input
+
+	input:
+	file x from ref_pbbam
+
+	output:
+	file "*.pbi" into pbi
+
+	script:
+	"""
+    pbindex $x
+	"""
+}
+
+process bam2fastx {
+	tag "bam2fastq.$x"
+    container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
+    publishDir params.input
+
+	input:
+    file x from pbi
+
+	output:
+	file "*.fastq.gz" into ref_canu
+
+	script:
+	"""
+    bam="$x"
+    bam="\${bam%.*}"
+    ln -s "$out_dcn/\$bam" .
+    bam2fastq -o \${bam%.*} \$bam
 	"""
 }
 
 process canu {
 	tag "canu.$x"
     container "${params.bio}/canu:2.1.1--he1b5a44_0"
+    publishDir out_asm
 
 	input:
 	file x from ref_canu
 
 	output:
-	file "*fasta" into canu, quast_canu, genomeqc_canu
-
-	when:
-    params.all || params.canu
+	file "*.contigs.fasta" into canu, quast_canu, genomeqc_canu
+    file "*.report" canu_report
+    file "*.fasta.gz" reads
+    file "*.unassembled.fasta" unassembled
+    file "*.layout.*" layouts
 
 	script:
 	"""
-	canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
+    if [[ \$gigs > 23 ]];
+    then
+        memory="\$gigs\\G"
+	    canu -assemble -p asm -d fog genomeSize=1g -pacbio-hifi $x useGrid=false maxThreads=${task.cpus} maxMemory=\$memory
+    else
+        touch ${x}.contigs.layout.tigInfo
+        touch ${x}.contigs.layout.readToTig
+        touch ${x}.contigs.layout
+        touch ${x}.unassembled.fasta
+        touch ${x}.contigs.fasta
+        touch ${x}.trimmedReads.fasta.gz
+        touch ${x}.correctedReads.fasta.gz
+    fi
 	"""
 }
 
 process peregrine {
 	tag "peregrine.$x"
+    container 'docker://cschin/peregrine:1.6.3'
+    publishDir out_asm
 
     input:
     file x from ref_peregrine
@@ -172,7 +254,7 @@ process peregrine {
     file "*fasta" into peregrine, quast_peregrine, genomeqc_peregrine
 
 	when:
-    params.all || params.peregrine
+    params.all
 
     script:
     """
@@ -190,11 +272,12 @@ process hifiasm {
 	file "ref.asm" into hifiasm, quast_hifiasm, genomeqc_hifiasm
 
 	when:
-	params.all || params.hifiasm
+    params.all
 
 	script:
 	"""
 	hifiasm -o ref.asm -t${task.cpus} $x
+    awk '/^S/{print ">"\$2;print \$3}' ref.asm.p_ctg.gfa > ref.asm.fasta
 	"""
 }
 
