@@ -169,7 +169,7 @@ decon.branch {
     rnavar: it =~/dnavar/
 }.set{decon}
 
-decon.ref.into{ref_pbbam; ref_peregrine; ref_hifiasm; ref_flye; ref_pbipa; ref_nextdenovo; ref_pb_assembly}
+decon.ref.into{ref_pbbam; ref_peregrine; ref_flye; ref_pbipa; ref_nextdenovo; ref_pb_assembly}
 
 process pbbam {
 	tag "pbbam.$x"
@@ -180,7 +180,7 @@ process pbbam {
 	file x from ref_pbbam
 
 	output:
-	file "*.pbi" into pbi
+	file "*.pbi" into ref_pbi
 
 	script:
 	"""
@@ -194,10 +194,10 @@ process bam2fastx {
     publishDir params.input
 
 	input:
-    file x from pbi
+    file x from ref_pbi
 
 	output:
-	file "*.fastq.gz" into ref_canu
+	file "*.fastq.gz" into ref_canu, ref_hifiasm
 
 	script:
 	"""
@@ -242,6 +242,33 @@ process canu {
 	"""
 }
 
+process hifiasm {
+	tag "hifiasm.$x"
+    container "${params.bio}/hifiasm:0.13--h8b12597_0"
+    publishDir out_asm
+
+	input:
+	file x from ref_hifiasm
+
+	output:
+	file "*.asm.fasta" into hifiasm, quast_hifiasm, genomeqc_hifiasm
+	file "*.asm"
+
+	script:
+	"""
+    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
+    if [[ \$gigs > 23 ]];
+    then
+        memory="\$gigs\\G"
+        hifiasm -o ${x}.asm -t ${task.cpus} $x
+        awk '/^S/{print ">"\$2;print \$3}' ${x}.asm.p_ctg.gfa > ${x}.asm.fasta
+    else
+        touch ${x}.asm
+        touch ${x}.asm.fasta
+    fi
+	"""
+}
+
 process peregrine {
 	tag "peregrine.$x"
     container 'docker://cschin/peregrine:1.6.3'
@@ -260,25 +287,6 @@ process peregrine {
     """
     yes yes | python3 /data/korens/devel/Peregrine/bin/pg_run.py asm chm13.list 24 24 24 24 24 24 24 24 24 --with-consensus --shimmer-r 3 --best_n_ovlp 8 --output ./
     """
-}
-
-process hifiasm {
-	tag "hifiasm.$x"
-
-	input:
-	file x from ref_hifiasm
-
-	output:
-	file "ref.asm" into hifiasm, quast_hifiasm, genomeqc_hifiasm
-
-	when:
-    params.all
-
-	script:
-	"""
-	hifiasm -o ref.asm -t${task.cpus} $x
-    awk '/^S/{print ">"\$2;print \$3}' ref.asm.p_ctg.gfa > ref.asm.fasta
-	"""
 }
 
 process pbipa {
