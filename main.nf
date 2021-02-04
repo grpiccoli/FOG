@@ -97,21 +97,25 @@ process pbmm2_mcontaminats {
 
 	script:
 	"""
-    memory=`echo "${task.memory}" | sed 's/[^0-9]//g'`G
-    preset=`echo ref_4W_A_hifi.bam | cut -d"_" -f4 | awk -F '.' '{ print toupper(\$1) }'`
+    cpus=`echo "${task.cpus}" | awk '{print int(\$0/2)}'`
+    memory=`echo "${task.memory}" | sed 's/[^0-9]//g' | awk -v cpus=\$cpus '{print int(\$0/cpus)}'`G
+    preset=`echo ref_4W_A_hifi.bam | cut -d"_" -f4 \
+    | awk -F '.' '{ print toupper(\$1) }'`
     if [[ preset == "isoseq" ]];
     then
         index=$iisoseq
     else
         index=$iccs
     fi
-	pbmm2 align \$index $x ${x}.cont.bam --sort -j ${task.cpus} -J ${task.cpus} -m \$memory
+	pbmm2 align \$index $x ${x}.cont.bam --sort \
+    -j \$cpus -J \$cpus -m \$memory
 	"""
 }
 
 process samtools_decon {
 	tag "samtools_decon.$x"
     publishDir out_dcn
+    cache 'lenient'
 
 	input:
 	file x from pbcont
@@ -126,7 +130,8 @@ process samtools_decon {
     bam=`echo "$x" | sed 's/\\.cont\\.bam\$//'`
     ln -s "$workflow.launchDir/$params.input/\$bam" .
     samtools view $x | cut -f 1 > ${x}.con
-    samtools view -h \$bam | grep -vf ${x}.con | samtools view -bS -o \${bam%.*}.decon.bam -
+    samtools view -h \$bam | grep -vf ${x}.con \
+    | samtools view -bS -o \${bam%.*}.decon.bam -
     samtools view -c \$bam > ${x}.cnt
 	"""
 }
@@ -148,7 +153,9 @@ process gnuplot_decon {
 	"""
     data=dataframe.dat
     n=`cat $n`
-    cat $x | cut -d"_" -f1 | sort | uniq -c | sort -k1nr,2n | awk -F' ' -v cnt=0 -v num=\$n '{print cnt"\\t"\$2"\\t"\$1/num;cnt++;}' > \$data
+    cat $x | cut -d"_" -f1 | sort | uniq -c | sort -k1nr,2n \
+    | awk -F' ' -v cnt=0 -v num=\$n '{print cnt"\\t"\$2"\\t"\$1/num;cnt++;}' \
+    > \$data
     tee -a tmp.plg <<EOT
     set terminal pdfcairo enhanced color notransparent
     set output '${x}.pdf'
@@ -169,7 +176,14 @@ decon.branch {
     rnavar: it =~/dnavar/
 }.set{decon}
 
-decon.ref.into{ref_pbbam; ref_peregrine; ref_flye; ref_pbipa; ref_nextdenovo; ref_pb_assembly}
+decon.ref.into{
+    ref_pbbam;
+    ref_peregrine;
+    ref_flye;
+    ref_pbipa;
+    ref_nextdenovo;
+    ref_pb_assembly
+}
 
 process pbbam {
 	tag "pbbam.$x"
@@ -208,6 +222,34 @@ process bam2fastx {
 	"""
 }
 
+process hifiasm {
+	tag "hifiasm.$x"
+    container "${params.bio}/hifiasm:0.13--h8b12597_0"
+    publishDir out_asm
+
+	input:
+	file x from ref_hifiasm
+
+	output:
+	file "*.asm.fasta" into hifiasm, quast_hifiasm, genomeqc_hifiasm
+    file "*.log"
+
+    //errorStrategy { task.exitStatus=0 ? 'ignore' : 'terminate' }
+
+	script:
+	"""
+    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
+    if [[ \$gigs > 23 ]];
+    then
+        hifiasm -o ${x}.asm -t ${task.cpus} $x 2> ${x}.asm.log
+        awk '/^S/{print ">"\$2;print \$3}' ${x}.asm.p_ctg.gfa > ${x}.asm.fasta
+    else
+        touch ${x}.asm
+        touch ${x}.asm.fasta
+    fi
+	"""
+}
+
 process canu {
 	tag "canu.$x"
     container "${params.bio}/canu:2.1.1--he1b5a44_0"
@@ -223,13 +265,22 @@ process canu {
     file "*.unassembled.fasta" unassembled
     file "*.layout.*" layouts
 
+	when:
+    params.all
+
 	script:
 	"""
     gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
     if [[ \$gigs > 23 ]];
     then
-        memory="\$gigs\\G"
-	    canu -assemble -p asm -d fog genomeSize=1g -pacbio-hifi $x useGrid=false maxThreads=${task.cpus} maxMemory=\$memory
+        memory="\${gigs}G"
+	    canu -assemble -p asm -d fog genomeSize=${params.genomeSize} \
+        -pacbio-hifi $x useGrid=false \
+        maxThreads=$task.cpus maxMemory=\$memory \
+        merylThreads=$task.cpus merylMemory=\$memory merylConcurrency=1 \
+        hapThreads=$task.cpus hapMemory=\$memory hapConcurrency=1 \
+        batThreads=$task.cpus batMemory=\$memory batConcurrency=1 \
+        gridOptionsJobName="$x"
     else
         touch ${x}.contigs.layout.tigInfo
         touch ${x}.contigs.layout.readToTig
@@ -238,33 +289,6 @@ process canu {
         touch ${x}.contigs.fasta
         touch ${x}.trimmedReads.fasta.gz
         touch ${x}.correctedReads.fasta.gz
-    fi
-	"""
-}
-
-process hifiasm {
-	tag "hifiasm.$x"
-    container "${params.bio}/hifiasm:0.13--h8b12597_0"
-    publishDir out_asm
-
-	input:
-	file x from ref_hifiasm
-
-	output:
-	file "*.asm.fasta" into hifiasm, quast_hifiasm, genomeqc_hifiasm
-	file "*.asm"
-
-	script:
-	"""
-    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
-    if [[ \$gigs > 23 ]];
-    then
-        memory="\$gigs\\G"
-        hifiasm -o ${x}.asm -t ${task.cpus} $x
-        awk '/^S/{print ">"\$2;print \$3}' ${x}.asm.p_ctg.gfa > ${x}.asm.fasta
-    else
-        touch ${x}.asm
-        touch ${x}.asm.fasta
     fi
 	"""
 }
