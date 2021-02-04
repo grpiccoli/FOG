@@ -24,6 +24,8 @@ out_pol="$out_dir/4_polishing"
 out_phs="$out_dir/5_phasing"
 out_rph="$out_dir/6_rephasing"
 
+//0.quality
+
 process fastqc {
     tag "fastqc.$x"
     //error
@@ -65,6 +67,8 @@ process multiqc {
     """
 }
 
+//1.deconatamination
+
 process pbmm2_icontaminants {
 	tag "pbmm2_decontamination.$x"
     publishDir params.input
@@ -97,7 +101,7 @@ process pbmm2_mcontaminats {
 
 	script:
 	"""
-    cpus=`echo "${task.cpus}" | awk '{print int(\$0/2)}'`
+    cpus=`echo "${task.cpus}" | awk '{r=int(\$0/2);if(r==0){print 1}else{print r}}'`
     memory=`echo "${task.memory}" | sed 's/[^0-9]//g' | awk -v cpus=\$cpus '{print int(\$0/cpus)}'`G
     preset=`echo ref_4W_A_hifi.bam | cut -d"_" -f4 \
     | awk -F '.' '{ print toupper(\$1) }'`
@@ -185,6 +189,8 @@ decon.ref.into{
     ref_pb_assembly
 }
 
+//bam 2 fastq or fasta
+
 process pbbam {
 	tag "pbbam.$x"
     container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
@@ -221,6 +227,8 @@ process bam2fastx {
     bam2fastq -o \${bam%.*} \$bam
 	"""
 }
+
+//2.assemblers
 
 process hifiasm {
 	tag "hifiasm.$x"
@@ -388,6 +396,8 @@ process pb_assembly {
     """
 }
 
+//3.repeat analysis
+
 canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
 .set{i_mummer}
 
@@ -466,6 +476,8 @@ process minimap2 {
     """
 }
 
+//4.polishing
+
 process purge_dups {
 	tag "purge_dups.$x"
 
@@ -519,6 +531,8 @@ process nextpolish {
     canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
     """
 }
+
+//5.phasing
 
 process allhic {
 	tag "nextpolish.$x"
@@ -592,6 +606,8 @@ process hirise {
     """
 }
 
+//6.re-phasing
+
 process dipasm {
 	tag "nextpolish.$x"
 
@@ -638,7 +654,7 @@ process purge_haplotigs {
     file x from i_purge_haplotigs
 
     output:
-    file "*fasta" into final_ref, quast_purge_haplotigs, mercury_purge_haplotigs, genomeqc_purge_haplotigs, assembly_stats_purge_haplotigs
+    file "*fasta" into final_ref, quast_purge_haplotigs, mercury_purge_haplotigs, genomeqc_purge_haplotigs, assembly_stats_purge_haplotigs, i_prapi
 
     when:
     params.all || params.purge_haplotigs
@@ -648,6 +664,8 @@ process purge_haplotigs {
     canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
     """
 }
+
+//assembly quality assesment
 
 process quast {
     tag "mummer.$x"
@@ -737,6 +755,71 @@ process assembly_stats {
     script:
     """
     Quast.py --large --skip-unaligned-mis-contigs    
+    """
+}
+
+decon.rnavar.into{i_isoseq; i_pbmm2}
+
+//isoseq
+process isoseq3 {
+    input:
+    file x from i_isoseq
+
+    output:
+    file "*fasta" into o_isoseq
+
+    when:
+    params.all
+
+    script:
+    """
+    """
+}
+
+process prapi {
+    input:
+    file x from o_isoseq
+    file g from i_prapi
+
+    output:
+    file "*fasta" into i_tama, i_maker
+
+    when:
+    params.all
+
+    script:
+    """
+    """
+}
+
+//genome annotation
+process tama {
+    input:
+    file x from i_tama
+
+    output:
+    file "*fasta" into tama
+
+    when:
+    params.all
+
+    script:
+    """
+    """
+}
+
+process maker {
+    input:
+    file x from i_maker
+
+    output:
+    file "*fasta" into maker
+
+    when:
+    params.all
+
+    script:
+    """
     """
 }
 
