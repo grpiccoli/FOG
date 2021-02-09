@@ -191,7 +191,6 @@ decon.ref.into{
     ref_pbbam;
     ref_peregrine;
     ref_pbipa;
-    ref_nextdenovo;
     ref_pb_assembly
 }
 
