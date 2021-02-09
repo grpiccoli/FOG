@@ -1,6 +1,4 @@
 #!/usr/bin/env nextflow
-out_dir = file(params.outdir)
-out_dir.mkdir()
 
 //isoseq
 Channel.fromPath("$params.input/rnavar_*.bam", type: 'file')
@@ -17,12 +15,14 @@ Channel.fromPath("$params.input/hic_*.fq.gz", type: 'file')
 //Genomics_03\Tarakihi\TARdn2\Hifi\4_filter_conta_preassembly\refseq
 contaminants=file("$params.input/contaminants.fasta")
 repbase=file("$params.input/RepeatMasker*.fasta")
-out_dcn="$out_dir/1_decontamination"
-out_asm="$out_dir/2_assemblers"
-out_rpt="$out_dir/3_repeat_analysis"
-out_pol="$out_dir/4_polishing"
-out_phs="$out_dir/5_phasing"
-out_rph="$out_dir/6_rephasing"
+out_dcn="$params.outdir/1_decontamination"
+out_asm="$params.outdir/2_assemblers"
+out_rpt="$params.outdir/3_repeat_analysis"
+out_pol="$params.outdir/4_polishing"
+out_phs="$params.outdir/5_phasing"
+out_rph="$params.outdir/6_rephasing"
+out_qul="$params.outdir/seq_quality/"
+out_i="$params.outdir/indexes/"
 
 //0.quality
 
@@ -53,7 +53,7 @@ process fastqc {
 process multiqc {
     tag "multiqc.$x"
     container "$params.bio/multiqc:1.9--py_1"
-    publishDir params.input
+    publishDir out_qul
 
 	input:
     file "fastqc/*" from fastqc.collect().ifEmpty([])
@@ -71,7 +71,7 @@ process multiqc {
 
 process pbmm2_icontaminants {
 	tag "pbmm2_decontamination.$x"
-    publishDir params.input
+    publishDir out_i
 
 	input:
     file c from contaminants
@@ -82,8 +82,10 @@ process pbmm2_icontaminants {
 
 	script:
 	"""
-    pbmm2 index --preset CCS $c ${c}_ccs.mmi
-    pbmm2 index --preset ISOSEQ $c ${c}_isoseq.mmi
+    name="$c"
+    name=\${name%.*}
+    pbmm2 index --preset CCS $c \${name}_ccs.mmi
+    pbmm2 index --preset ISOSEQ $c \${name}_isoseq.mmi
 	"""
 }
 
@@ -97,12 +99,12 @@ process pbmm2_mcontaminats {
     file iisoseq from i_isoseq.collect()
 
 	output:
-    file "*cont.bam" into pbcont
+    file "*_cont.bam" into pbcont
 
 	script:
 	"""
-    cpus=`echo "${task.cpus}" | awk '{r=int(\$0/2);if(r==0){print 1}else{print r}}'`
-    memory=`echo "${task.memory}" | sed 's/[^0-9]//g' | awk -v cpus=\$cpus '{print int(\$0/cpus)}'`G
+    cpus=`echo "$task.cpus" | awk '{r=int(\$0/2);if(r==0){print 1}else{print r}}'`
+    memory=`echo "$task.memory" | sed 's/[^0-9]//g' | awk -v cpus=\$cpus '{print int(\$0/cpus)}'`G
     preset=`echo ref_4W_A_hifi.bam | cut -d"_" -f4 \
     | awk -F '.' '{ print toupper(\$1) }'`
     if [[ preset == "isoseq" ]];
@@ -111,7 +113,9 @@ process pbmm2_mcontaminats {
     else
         index=$iccs
     fi
-	pbmm2 align \$index $x ${x}.cont.bam --sort \
+    name="$x"
+    name=\${name%.*}
+	pbmm2 align \$index $x \${name}_cont.bam --sort \
     -j \$cpus -J \$cpus -m \$memory
 	"""
 }
@@ -125,24 +129,25 @@ process samtools_decon {
 	file x from pbcont
 
 	output:
-    file "*decon.bam" into decon
+    file "*_decon.bam" into decon
     file "*.con" into con
     file "*.cnt" into cnt
 
 	script:
 	"""
-    bam=`echo "$x" | sed 's/\\.cont\\.bam\$//'`
+    bam=`echo "$x" | sed 's/\\_cont//'`
     ln -s "$workflow.launchDir/$params.input/\$bam" .
-    samtools view $x | cut -f 1 > ${x}.con
-    samtools view -h \$bam | grep -vf ${x}.con \
-    | samtools view -bS -o \${bam%.*}.decon.bam -
-    samtools view -c \$bam > ${x}.cnt
+    name=\${bam%.*}
+    samtools view $x | cut -f 1 > \$name.con
+    samtools view -h \$bam | grep -vf \$name.con \
+    | samtools view -bS -o \${name}_decon.bam -
+    samtools view -c \$bam > \$name.cnt
 	"""
 }
 
 process gnuplot_decon {
 	tag "r_graphdecon.$x"
-    publishDir out_dcn
+    publishDir "$out_dcn/report"
 
 	input:
 	file x from con
@@ -155,14 +160,16 @@ process gnuplot_decon {
 
 	script:
 	"""
-    data=dataframe.dat
+    name="$x"
+    name=\${name%.*}
+    data=\${name}.dat
     n=`cat $n`
     cat $x | cut -d"_" -f1 | sort | uniq -c | sort -k1nr,2n \
     | awk -F' ' -v cnt=0 -v num=\$n '{print cnt"\\t"\$2"\\t"\$1/num;cnt++;}' \
     > \$data
-    tee -a tmp.plg <<EOT
+    tee -a \${name}.plg <<EOT
     set terminal pdfcairo enhanced color notransparent
-    set output '${x}.pdf'
+    set output '\${name}_cont.pdf'
     set key noautotitle
     set xlabel "Taxonomic Order"
     set ylabel "Read Count"
@@ -170,7 +177,7 @@ process gnuplot_decon {
     set key box top left spacing 1.5
     plot '\$data' using 1:3:xtic(2) with boxes
     EOT
-    gnuplot tmp.plg
+    gnuplot \${name}.plg
 	"""
 }
 
@@ -183,7 +190,6 @@ decon.branch {
 decon.ref.into{
     ref_pbbam;
     ref_peregrine;
-    ref_flye;
     ref_pbipa;
     ref_nextdenovo;
     ref_pb_assembly
@@ -194,7 +200,7 @@ decon.ref.into{
 process pbbam {
 	tag "pbbam.$x"
     container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
-    publishDir params.input
+    publishDir out_i
 
 	input:
 	file x from ref_pbbam
@@ -211,19 +217,20 @@ process pbbam {
 process bam2fastx {
 	tag "bam2fastq.$x"
     container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
-    publishDir params.input
+    publishDir out_dcn
+    cache 'lenient'
 
 	input:
     file x from ref_pbi
 
 	output:
-	file "*.fastq.gz" into ref_canu, ref_hifiasm
+	file "*.fastq.gz" into ref_canu, ref_hifiasm, ref_flye
 
 	script:
 	"""
     bam="$x"
     bam="\${bam%.*}"
-    ln -s "$out_dcn/\$bam" .
+    ln -s "$workflow.launchDir/$out_dcn/\$bam" .
     bam2fastq -o \${bam%.*} \$bam
 	"""
 }
@@ -232,30 +239,76 @@ process bam2fastx {
 
 process hifiasm {
 	tag "hifiasm.$x"
-    container "${params.bio}/hifiasm:0.13--h8b12597_0"
-    publishDir out_asm
+    container "$params.bio/hifiasm:0.13--h8b12597_0"
+    publishDir "$out_asm/hifiasm"
 
 	input:
 	file x from ref_hifiasm
 
 	output:
-	file "*.asm.fasta" into hifiasm, quast_hifiasm, genomeqc_hifiasm
-    file "*.log"
+	file "*.fasta" into hifiasm
+    file "*asm*"
 
     //errorStrategy { task.exitStatus=0 ? 'ignore' : 'terminate' }
 
 	script:
 	"""
-    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
+    gigs=`echo "$task.memory" | sed 's/[^0-9]//g'`
     if [[ \$gigs > 23 ]];
     then
-        hifiasm -o ${x}.asm -t ${task.cpus} $x 2> ${x}.asm.log
-        awk '/^S/{print ">"\$2;print \$3}' ${x}.asm.p_ctg.gfa > ${x}.asm.fasta
+        hifiasm -o hifiasm.asm -t $task.cpus $x 2> hifiasm.asm.log
+        awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_ctg.gfa > hifiasm.fasta
     else
-        touch ${x}.asm
-        touch ${x}.asm.fasta
+        touch hifiasm.asm.log
+        touch hifiasm.fasta
     fi
 	"""
+}
+
+process flye {
+	tag "flye.$x"
+    container "$params.bio/flye:2.8.2--py36h5202f60_0"
+    publishDir "$out_asm/flye"
+
+    input:
+    file x from ref_flye
+
+    output:
+    file "*fasta" into flye
+    file "*{txt,log}"
+
+    script:
+    """
+	flye --pacbio-hifi $x -o flye -t $task.cpus -g $params.genomeSize -i 10
+    mv flye/assembly.fasta flye.fasta
+    mv flye/*txt .
+    mv flye/*log .
+    """
+}
+
+process pbipa {
+	tag "pbipa.$x"
+    container "$params.bio/pbipa:1.3.2--hee625c5_0"
+
+    input:
+    file x from ref_pbipa
+
+    output:
+    file "ref.asm" into pbipa
+
+	when:
+    params.all
+
+    script:
+    """
+    tee -a config.json <<EOT
+    {
+        "reads_fn": "input.fofn",
+        "genome_size": ${params.genomeSize}
+    }
+    EOT
+    ipa local --nthreads ${task.cpus} --njobs 1 -i $x
+    """
 }
 
 process canu {
@@ -267,7 +320,7 @@ process canu {
 	file x from ref_canu
 
 	output:
-	file "*.contigs.fasta" into canu, quast_canu, genomeqc_canu
+	file "*.contigs.fasta" into canu
     file "*.report" canu_report
     file "*.fasta.gz" reads
     file "*.unassembled.fasta" unassembled
@@ -310,7 +363,7 @@ process peregrine {
     file x from ref_peregrine
 
     output:
-    file "*fasta" into peregrine, quast_peregrine, genomeqc_peregrine
+    file "*fasta" into peregrine
 
 	when:
     params.all
@@ -321,43 +374,6 @@ process peregrine {
     """
 }
 
-process pbipa {
-	tag "pbipa.$x"
-
-    input:
-    file x from ref_pbipa
-
-    output:
-    file "ref.asm" into pbipa, quast_pbipa, genomeqc_pbipa
-
-    when:
-    params.all || params.pbipa
-
-    script:
-    """
-    ipa local --nthreads ${task.cpus} --njobs 1 -i $x
-    """
-}
-
-process flye {
-	tag "flye.$x"
-
-    input:
-    file x from ref_flye
-
-    output:
-    file "ref.asm" into flye, quast_flye, genomeqc_flye
-
-    when:
-    params.all || params.flye
-
-    script:
-    """
-	flye --pacbio-hifi $x -o large -t ${task.cpus} -g 1g -i 20
-	flye --pacbio-hifi $x -o short -t ${task.cpus} -g 0.6g -i 20
-    """
-}
-
 process nextdonovo {
 	tag "nextdenovo.$x"
 	
@@ -365,7 +381,7 @@ process nextdonovo {
     file x from ref_nextdenovo
 
     output:
-    file "ref.asm" into nextdenovo, quast_nextdenovo, genomeqc_nextdenovo
+    file "ref.asm" into nextdenovo
 
     when:
     params.all || params.nextdenovo
@@ -385,7 +401,7 @@ process pb_assembly {
     file x from ref_pb_assembly
 
     output:
-    file "*fasta" into pb_assembly, quast_pb, genomeqc_pb
+    file "*fasta" into pb_assembly
 
     when:
     params.all || params.pb_assembly
@@ -399,13 +415,18 @@ process pb_assembly {
 //3.repeat analysis
 
 canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
-.set{i_mummer}
+.into{
+    i_assembler_mummer;
+    i_assembler_assembly_stats;
+    i_assembler_quast;
+    i_assembler_genomeqc
+}
 
 process mummer {
 	tag "mummer.$x"
 
     input:
-    file x from i_mummer
+    file x from i_assembler_mummer
 
     output:
     file "*fasta" into mummer
@@ -671,7 +692,7 @@ process quast {
     tag "mummer.$x"
 
     input:
-    file x from quast_canu.mix(quast_peregrine,quast_hifiasm,quast_pbipa,quast_flye,quast_nextdenovo,quast_pb,quast_dups,quast_racon,quast_nextpolish).collect()
+    file x from i_assembler_quast.mix(quast_dups,quast_racon,quast_nextpolish).collect()
 
     output:
     file "*fasta" into quast
@@ -708,7 +729,7 @@ process genomeqc {
     tag "genomeqc.$x"
 
     input:
-    file x from genomeqc_canu.mix(genomeqc_peregrine,genomeqc_hifiasm,genomeqc_pbipa,genomeqc_flye,genomeqc_nextdenovo,genomeqc_pb,genomeqc_dups,genomeqc_racon,genomeqc_nextpolish).collect()
+    file x from i_assembler_genomeqc.mix(genomeqc_dups,genomeqc_racon,genomeqc_nextpolish).collect()
 
     output:
     file "*fasta" into genomeqc
@@ -741,20 +762,19 @@ process merqury {
 }
 
 process assembly_stats {
-    tag "mummer.$x"
+    tag "assembly-stats.$x"
+    container "$params.fog/assembly-stats:17.02"
+    publishDir "$out_asm/assembly-stats"
 
     input:
-    file x from assembly_stats_purge_haplotigs
+    file x from i_assembler_assembly_stats.mix(assembly_stats_purge_haplotigs).collect()
 
     output:
-    file "*fasta" into assembly_stats
-
-    when:
-    params.all || params.mummer
+    file "*"
 
     script:
     """
-    Quast.py --large --skip-unaligned-mis-contigs    
+    create-stats ${x} > assembly-stats.html
     """
 }
 
