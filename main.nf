@@ -13,7 +13,7 @@ Channel.fromPath("$params.input/ref_*.bam", type: 'file')
 Channel.fromPath("$params.input/hic_*.fq.gz", type: 'file')
 .buffer(size:2).into{qhic;hicref}
 //Genomics_03\Tarakihi\TARdn2\Hifi\4_filter_conta_preassembly\refseq
-contaminants=file("$params.input/contaminants.fasta.gz")
+contaminants=file("$params.input/contaminants.fasta")
 repbase=file("$params.input/RepeatMasker*.fasta")
 out_dcn="$params.outdir/1_decontamination"
 out_asm="$params.outdir/2_assemblers"
@@ -224,7 +224,7 @@ process bam2fastx {
     file x from ref_pbi
 
 	output:
-	file "*.fastq.gz" into ref_canu, ref_hifiasm, ref_flye
+	file "*.fastq.gz" into ref_hifiasm, ref_flye, ref_nextdenovo, ref_canu
 
 	script:
 	"""
@@ -286,6 +286,26 @@ process flye {
     """
 }
 
+process nextdonovo {
+	tag "nextdenovo.$x"
+	
+	input:
+    file x from ref_nextdenovo
+
+    output:
+    file "ref.asm" into nextdenovo
+
+    when:
+    params.all
+
+    script:
+    """
+	ls $x > input.fofn
+	wget https://raw.githubusercontent.com/Nextomics/NextDenovo/master/doc/run.cfg
+	nextDenovo run.cfg
+    """
+}
+
 process pbipa {
 	tag "pbipa.$x"
     container "$params.bio/pbipa:1.3.2--hee625c5_0"
@@ -301,13 +321,7 @@ process pbipa {
 
     script:
     """
-    tee -a config.json <<EOT
-    {
-        "reads_fn": "input.fofn",
-        "genome_size": ${params.genomeSize}
-    }
-    EOT
-    ipa local --nthreads ${task.cpus} --njobs 1 -i $x
+    ipa local -i $x --nthreads ${task.cpus} --njobs 1
     """
 }
 
@@ -371,26 +385,6 @@ process peregrine {
     script:
     """
     yes yes | python3 /data/korens/devel/Peregrine/bin/pg_run.py asm chm13.list 24 24 24 24 24 24 24 24 24 --with-consensus --shimmer-r 3 --best_n_ovlp 8 --output ./
-    """
-}
-
-process nextdonovo {
-	tag "nextdenovo.$x"
-	
-	input:
-    file x from ref_nextdenovo
-
-    output:
-    file "ref.asm" into nextdenovo
-
-    when:
-    params.all || params.nextdenovo
-
-    script:
-    """
-	ls $x > input.fofn
-	cp doc/run.cfg ./
-	nextDenovo run.cfg
     """
 }
 
