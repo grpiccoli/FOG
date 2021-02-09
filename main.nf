@@ -13,7 +13,7 @@ Channel.fromPath("$params.input/ref_*.bam", type: 'file')
 Channel.fromPath("$params.input/hic_*.fq.gz", type: 'file')
 .buffer(size:2).into{qhic;hicref}
 //Genomics_03\Tarakihi\TARdn2\Hifi\4_filter_conta_preassembly\refseq
-contaminants=file("$params.input/contaminants.fasta")
+contaminants=file("$params.input/contaminants.fasta.gz")
 repbase=file("$params.input/RepeatMasker*.fasta")
 out_dcn="$params.outdir/1_decontamination"
 out_asm="$params.outdir/2_assemblers"
