@@ -101,7 +101,7 @@ process pbmm2_mcontaminats {
     file iisoseq from i_isoseq.collect()
 
 	output:
-    tuple file("*_orig.bam"), file("*_cont.bam") into pbcont
+    tuple file("*.bam.pass"), file("*_cont.bam") into pbcont
 
 	script:
 	"""
@@ -119,12 +119,12 @@ process pbmm2_mcontaminats {
     name=\${name%.*}
 	pbmm2 align \$index $x \${name}_cont.bam --sort \
     -j \$cpus -J \$cpus -m \$memory
-    ln -s $x \${name}_orig.bam
+    ln -s $x ${x}.pass
 	"""
 }
 
 process samtools_decon {
-	tag "samtools_decon.$x"
+	tag "samtools_decon.$orig"
     publishDir out_dcn
     cache 'lenient'
 
@@ -140,10 +140,12 @@ process samtools_decon {
 	"""
     name="$orig"
     name=\${name%.*}
+    mv $orig \$name
+    name=\${name%.*}
     samtools view $cont | cut -f 1 > \$name.con
-    samtools view -h $orig | grep -vf \$name.con \
+    samtools view -h \$name.bam | grep -vf \$name.con \
     | samtools view -bS -o \${name}_decon.bam -
-    samtools view -c $orig > \$name.cnt
+    samtools view -c \$name.bam > \$name.cnt
 	"""
 }
 
@@ -207,32 +209,35 @@ process pbbam {
 	file x from ref_pbbam
 
 	output:
-	file "*.pbi" into ref_pbi
+	tuple file("*.bam.pass"), file("*.pbi") into ref_pbi
 
 	script:
 	"""
+    name="$x"
     pbindex $x
+    ln -s $x ${x}.pass
 	"""
 }
 
 process bam2fastx {
-	tag "bam2fastq.$x"
+	tag "bam2fastq.$bam"
     container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
     publishDir out_dcn
     cache 'lenient'
 
 	input:
-    file x from ref_pbi
+    tuple file(bam), file(index) from ref_pbi
 
 	output:
 	file "*.fastq.gz" into ref_hifiasm, ref_flye, ref_nextdenovo, ref_canu
 
 	script:
 	"""
-    bam="$x"
-    bam="\${bam%.*}"
-    ln -s "$workflow.launchDir/$out_dcn/\$bam" .
-    bam2fastq -o \${bam%.*} \$bam
+    name="$bam"
+    name=\${name%.*}
+    mv $bam \$name
+    name=\${name%.*}
+    bam2fastq -o \$name \${name}.bam
 	"""
 }
 
