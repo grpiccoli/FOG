@@ -47,7 +47,7 @@ process fastqc {
         format=fastq
     fi
     memory=`echo "$task.memory" | sed 's/[^0-9]//g'`G
-    export JAVA_TOOL_OPTIONS="-Xmx:\$memory"
+    export JAVA_TOOL_OPTIONS="-Xmx\$memory"
     fastqc -t $task.cpus -f \$format $x
     """
 }
