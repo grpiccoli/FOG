@@ -101,7 +101,7 @@ process pbmm2_mcontaminats {
     file iisoseq from i_isoseq.collect()
 
 	output:
-    file "*_cont.bam" into pbcont
+    tuple file("*_orig.bam"), file("*_cont.bam") into pbcont
 
 	script:
 	"""
@@ -119,6 +119,7 @@ process pbmm2_mcontaminats {
     name=\${name%.*}
 	pbmm2 align \$index $x \${name}_cont.bam --sort \
     -j \$cpus -J \$cpus -m \$memory
+    ln -s $x \${name}_orig.bam
 	"""
 }
 
@@ -128,7 +129,7 @@ process samtools_decon {
     cache 'lenient'
 
 	input:
-	file x from pbcont
+	tuple file(orig), file(cont) from pbcont
 
 	output:
     file "*_decon.bam" into decon
@@ -137,13 +138,12 @@ process samtools_decon {
 
 	script:
 	"""
-    bam=`echo "$x" | sed 's/\\_cont//'`
-    ln -s "$workflow.launchDir/$params.input/\$bam" .
-    name=\${bam%.*}
-    samtools view $x | cut -f 1 > \$name.con
-    samtools view -h \$bam | grep -vf \$name.con \
+    name="$orig"
+    name=\${name%.*}
+    samtools view $cont | cut -f 1 > \$name.con
+    samtools view -h $orig | grep -vf \$name.con \
     | samtools view -bS -o \${name}_decon.bam -
-    samtools view -c \$bam > \$name.cnt
+    samtools view -c $orig > \$name.cnt
 	"""
 }
 
