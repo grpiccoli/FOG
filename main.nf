@@ -29,8 +29,8 @@ out_i="$params.outdir/indexes/"
 process fastqc {
     tag "fastqc.$x"
     //error
-    container "$params.bio/fastqc:0.11.9--0"
-    //container "$params.fog/fastqc:0.11.9"
+    //container "$params.bio/fastqc:0.11.9--0"
+    container "$params.fog/fastqc:0.11.9"
 
     input:
     file x from qdna.mix(qref,qrna,qhic)
