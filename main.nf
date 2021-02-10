@@ -47,7 +47,7 @@ process fastqc {
         format=fastq
     fi
     memory=`echo "$task.memory" | sed 's/[^0-9]//g' | awk '{print int(\$1/$task.cpus)"G"}'`
-    export JAVA_TOOL_OPTIONS="-Xmx\$memory -Xms\$memory -Xss1G -XX:CompressedClassSpaceSize=3G"
+    export JAVA_TOOL_OPTIONS="-Xmx\$memory -Xms\$memory -Xss1G -XX:CompressedClassSpaceSize=3221225472"
     fastqc -t $task.cpus -f \$format $x
     """
 }
