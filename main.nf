@@ -47,7 +47,7 @@ process fastqc {
         format=fastq
     fi
     memory=`echo "$task.memory" | sed 's/[^0-9]//g' | awk '{print int(\$1/$task.cpus)"G"}'`
-    export JAVA_OPTS="-Djava.io.tmpdir=\$TMPDIR -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=2 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:+ExitOnOutOfMemoryError -XX:+PrintFlagsFinal"
+    #export JAVA_OPTS="-Djava.io.tmpdir=\$TMPDIR -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap -XX:MaxRAMFraction=2 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:+ExitOnOutOfMemoryError -XX:+PrintFlagsFinal"
     # -Xmx\$memory -Xms\$memory -Xss1G -XX:CompressedClassSpaceSize=3221225472"
     fastqc -t $task.cpus -f \$format $x
     """
