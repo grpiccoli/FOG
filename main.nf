@@ -185,7 +185,13 @@ process gnuplot_decon {
     set key box top left spacing 1.5
     plot '\$data' using 1:3:xtic(2) with boxes
     EOT
-    gnuplot \${name}.plg
+    LNG=`wc -l dnavar_1P_M_hifi.dat | cut -d' ' -f1`
+    if [ \$LNG -eq 0 ];
+    then
+        touch \${name}.empty.pdf
+    else
+        gnuplot \${name}.plg
+    fi
 	"""
 }
 
