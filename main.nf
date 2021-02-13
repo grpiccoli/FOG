@@ -302,15 +302,39 @@ process flye {
     """
 }
 
+process yamls {
+	tag "yamls"
+    publishDir out_i
+
+    output:
+    file "pbipa.yaml" into pbipa_yaml
+
+    script:
+    """
+    tee -a pbipa.yaml <<EOT
+    name: pbipa
+    channels:
+      - defaults
+      - conda-forge
+      - bioconda
+    EOT
+    """
+}
+
 process pbipa {
 	tag "pbipa.$x"
-    conda "pbipa.yaml"
+    publishDir "$out_asm/pbipa"
+    conda "$out_i/$y"
 
     input:
     file x from ref_pbipa
+    file y from pbipa_yaml
 
     output:
     file "ref.asm" into pbipa
+
+    when:
+    params.all
 
     script:
     """
