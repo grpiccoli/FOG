@@ -27,10 +27,8 @@ out_i="$params.outdir/indexes/"
 //0.quality
 
 process fastqc {
-    tag "fastqc.$x"
-    //error
-    //container "$params.bio/fastqc:0.11.9--0"
-    //container "$params.fog/fastqc:0.11.9"
+    tag "fastqc"
+    container "$params.bio/fastqc:0.11.9--0"
 
     input:
     file x from qdna.mix(qref,qrna,qhic)
@@ -42,18 +40,21 @@ process fastqc {
     """
     if [[ "$x" == *"bam"* ]];
     then
-        format=bam
+        format="bam"
     else
-        format=fastq
+        format="fastq"
     fi
-    #memory=`echo "$task.memory" | sed 's/[^0-9]//g' | awk '{print int(\$1/$task.cpus)"G"}'`
-    #export JAVA_OPTS="-XX:-UseGCOverheadLimit -Xmx\$memory"
-    # -Djava.io.tmpdir=\$TMPDIR -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap
-    # -XX:MaxRAMFraction=2 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:+ExitOnOutOfMemoryError -XX:+PrintFlagsFinal
-    # -Xms\$memory -Xss1G -XX:CompressedClassSpaceSize=3221225472"
     fastqc -t $task.cpus -f \$format --noextract $x
     """
 }
+
+/*
+    memory=`echo "$task.memory" | sed 's/[^0-9]//g' | awk '{print int(\$1/$task.cpus)"G"}'`
+    export JAVA_OPTS="-XX:-UseGCOverheadLimit -Xmx\$memory"
+    -Djava.io.tmpdir=\$TMPDIR -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap
+    -XX:MaxRAMFraction=2 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:+ExitOnOutOfMemoryError -XX:+PrintFlagsFinal
+    -Xms\$memory -Xss1G -XX:CompressedClassSpaceSize=3221225472"
+*/
 
 process multiqc {
     tag "multiqc.$x"
