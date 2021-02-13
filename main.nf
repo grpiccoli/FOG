@@ -185,7 +185,7 @@ process gnuplot_decon {
     set key box top left spacing 1.5
     plot '\$data' using 1:3:xtic(2) with boxes
     EOT
-    LNG=`wc -l dnavar_1P_M_hifi.dat | cut -d' ' -f1`
+    LNG=`wc -l \$data | cut -d' ' -f1`
     if [ \$LNG -eq 0 ];
     then
         touch \${name}.empty.pdf
@@ -302,6 +302,22 @@ process flye {
     """
 }
 
+process pbipa {
+	tag "pbipa.$x"
+    conda "pbipa.yaml"
+
+    input:
+    file x from ref_pbipa
+
+    output:
+    file "ref.asm" into pbipa
+
+    script:
+    """
+    ipa local -i $x --nthreads ${task.cpus} --njobs 1
+    """
+}
+
 process nextdonovo {
 	tag "nextdenovo.$x"
 	
@@ -319,25 +335,6 @@ process nextdonovo {
 	ls $x > input.fofn
 	wget https://raw.githubusercontent.com/Nextomics/NextDenovo/master/doc/run.cfg
 	nextDenovo run.cfg
-    """
-}
-
-process pbipa {
-	tag "pbipa.$x"
-    container "$params.bio/pbipa:1.3.2--hee625c5_0"
-
-    input:
-    file x from ref_pbipa
-
-    output:
-    file "ref.asm" into pbipa
-
-	when:
-    params.all
-
-    script:
-    """
-    ipa local -i $x --nthreads ${task.cpus} --njobs 1
     """
 }
 
