@@ -317,6 +317,8 @@ process yamls {
       - defaults
       - conda-forge
       - bioconda
+    dependencies:
+      - pbipa=1.3.2
     EOT
     """
 }
@@ -331,14 +333,13 @@ process pbipa {
     file y from pbipa_yaml
 
     output:
-    file "ref.asm" into pbipa
-
-    when:
-    params.all
+    file "*.fasta" into pbipa
 
     script:
     """
     ipa local -i $x --nthreads ${task.cpus} --njobs 1
+    ln -s RUN/assembly-results/final.a_ctg.fasta pbipa_a.fasta
+    ln -s RUN/assembly-results/final.p_ctg.fasta pbipa_p.fasta
     """
 }
 
@@ -445,7 +446,7 @@ process pb_assembly {
 
 //3.repeat analysis
 
-canu.mix(peregrine,hifiasm,pbipa,flye,nextdenovo,pb_assembly)
+canu.mix(hifiasm,flye,pbipa,peregrine,nextdenovo,pb_assembly)
 .into{
     i_assembler_mummer;
     i_assembler_assembly_stats;
