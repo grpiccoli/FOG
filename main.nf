@@ -65,7 +65,7 @@ process multiqc {
     file "fastqc/*" from fastqc.collect().ifEmpty([])
 
     output:
-    file "multiqc_report.html" into multiqc
+    file "*"
 
     script:
     """
@@ -262,8 +262,7 @@ process hifiasm {
 	file x from ref_hifiasm
 
 	output:
-	file "*.fasta" into hifiasm
-    file "*asm*"
+    file "*asm*" into hifiasm_o
 
     //errorStrategy { task.exitStatus=0 ? 'ignore' : 'terminate' }
 
@@ -273,12 +272,29 @@ process hifiasm {
     if [[ \$gigs > 23 ]];
     then
         hifiasm -o hifiasm.asm -t $task.cpus $x 2> hifiasm.asm.log
-        awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_ctg.gfa > hifiasm.fasta
     else
         touch hifiasm.asm.log
-        touch hifiasm.fasta
     fi
 	"""
+}
+
+process post_hifiasm {
+	tag "post_hifiasm.$x"
+    publishDir "$out_asm/hifiasm"
+
+	input:
+	file x from hifiasm_o
+
+	output:
+	file "*.fasta" into hifiasm
+
+    script:
+    """
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.r_utg.gfa > hifiasm_raw.fasta
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_utg.gfa > hifiasm_processed.fasta
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_ctg.gfa > hifiasm_primary.fasta
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.a_ctg.gfa > hifiasm_alternate.fasta
+    """
 }
 
 process flye {
@@ -290,15 +306,28 @@ process flye {
     file x from ref_flye
 
     output:
-    file "*fasta" into flye
-    file "*{txt,log}"
+    file "*fasta" into pre_flye
+    file "*{txt,log,gfa}"
 
     script:
     """
 	flye --pacbio-hifi $x -o flye -t $task.cpus -g $params.genomeSize -i 10
-    mv flye/assembly.fasta flye.fasta
-    mv flye/*txt .
-    mv flye/*log .
+    """
+}
+
+process post_flye{
+	tag "flye"
+    publishDir "$out_asm/flye"
+
+    input:
+    file x from pre_flye.collect()
+
+    output:
+    file "flye.fasta" into flye
+
+    script:
+    """
+    mv assembly.fasta flye.fasta
     """
 }
 
@@ -333,13 +362,28 @@ process pbipa {
     file y from pbipa_yaml
 
     output:
-    file "*.fasta" into pbipa
+    file "*.fasta" into pre_pbipa
 
     script:
     """
     ipa local -i $x --nthreads ${task.cpus} --njobs 1
-    ln -s RUN/assembly-results/final.a_ctg.fasta pbipa_a.fasta
-    ln -s RUN/assembly-results/final.p_ctg.fasta pbipa_p.fasta
+    """
+}
+
+process post_pbipa {
+    tag "post_pbipa"
+    publishDir "$out_asm/pbipa"
+
+    input:
+    file x from pre_pbipa.collect()
+
+    output:
+    file "*.fasta" into pbipa
+
+    script:
+    """
+    mv final.a_ctg.fasta pbipa_alternate.fasta
+    mv final.p_ctg.fasta pbipa_primary.fasta
     """
 }
 
@@ -721,39 +765,57 @@ process purge_haplotigs {
 //assembly quality assesment
 
 process quast {
-    tag "mummer.$x"
+    tag "quast"
+    container "$params.bio/quast:5.0.2--py37pl526hb5aa323_2"
+    publishDir "$out_asm/quast"
 
     input:
     file x from i_assembler_quast.mix(quast_dups,quast_racon,quast_nextpolish).collect()
 
     output:
-    file "*fasta" into quast
-    file "other" into squat
-
-    when:
-    params.all || params.mummer
+    file "genome.qc" into quast, i_icarus
 
     script:
     """
-    Quast.py --large --skip-unaligned-mis-contigs    
+    $params.genomeSize
+    quast \
+    $x
+    -e -t $task.cpus --large -k --circos -f -b \
+    --est-ref-size $params.genomeSize
     """
 }
 
-process icarus {
-    tag "icarus.$x"
+process length_graph {
+    tag "quast.$x"
+    publishDir "$out_asm/quast"
 
     input:
     file x from quast
 
     output:
-    file "*fasta" into icarus
-
-    when:
-    params.all || params.icarus
+    file "*"
 
     script:
     """
-    Quast.py --large --skip-unaligned-mis-contigs    
+    library(ggplot2)
+    df <- quast
+    plot <- ggplot(df, aes(x="",y=total.length)) +
+    geom_jitter(size = 2, 
+                position = position_jitter(width=c(0.1,.2),seed=23),
+                alpha = 1) +
+    scale_color_manual(values=c("#c7c7c7","#ff0000" )) +
+    stat_boxplot(geom ="errorbar", width = 0.1) + 
+    geom_boxplot(outlier.alpha = 0, alpha = .1, width = 0.1) +
+    stat_summary(fun.y=mean, colour="black", geom="point", 
+                shape=21, fill = "white", size=2,show_guide = FALSE) +
+    labs(y="total assembly length (bp)", 
+        x="") + guides(color = guide_legend(override.aes = list(size=5))) + 
+    labs(color='remove') +
+    ylim(0,3e7)
+
+    #ggsave(file="", width=10, height=8)
+
+    plot(plot)
     """
 }
 
