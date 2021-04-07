@@ -2,49 +2,84 @@
 
 //isoseq
 Channel.fromPath("$params.input/rnavar_*.bam", type: 'file')
-.buffer(size:1).into{qrna;bamrna}
+.buffer(size:1)
+.into{
+    qrna;
+    bamrna
+}
 //hifi
 Channel.fromPath("$params.input/dnavar_*.bam", type: 'file')
-.buffer(size:1).into{qdna;bamdna}
+.buffer(size:1)
+.into{
+    qdna;
+    bamdna
+}
 //hifi reference
 Channel.fromPath("$params.input/ref_*.bam", type: 'file')
-.buffer(size:1).into{qref;bamref}
+.buffer(size:1)
+.into{
+    qref;
+    bamref;
+    ref_pbbam;
+    ref_pbipa;
+    ref_peregrine;
+    ref_pb_assembly
+}
 //hi-c reference
 Channel.fromPath("$params.input/hic_*.fq.gz", type: 'file')
-.buffer(size:2).into{qhic;hicref}
+.buffer(size:2).into{
+    qhic;
+    hicref
+}
 //Genomics_03\Tarakihi\TARdn2\Hifi\4_filter_conta_preassembly\refseq
 contaminants=file("$params.input/contaminants.fasta")
 repbase=file("$params.input/RepeatMasker*.fasta")
 out_dcn="$params.outdir/1_decontamination"
+Channel.fromPath("$out_dcn/fastqc/*zip").set{o_fastqc}
 out_asm="$params.outdir/2_assemblers"
 out_rpt="$params.outdir/3_repeat_analysis"
 out_pol="$params.outdir/4_polishing"
 out_phs="$params.outdir/5_phasing"
 out_rph="$params.outdir/6_rephasing"
-out_qul="$params.outdir/seq_quality/"
-out_i="$params.outdir/indexes/"
+out_qul="$params.outdir/seq_quality"
+out_i="$params.outdir/indexes"
 
-//0.quality
+//outputs
 
-process fastqc {
+
+//////////////////////////////////////////////////////
+// START 0.quality
+//////////////////////////////////////////////////////
+process singularity_mo-mount_fastqc {
     tag "fastqc"
     container "$params.bio/fastqc:0.11.9--0"
+    cache 'lenient'
+    publishDir "$out_qul/fastqc"
 
     input:
     file x from qdna.mix(qref,qrna,qhic)
+    file o from o_fastqc.collect()
 
     output:
     file "*_fastqc.zip" into fastqc
 
     script:
     """
-    if [[ "$x" == *"bam"* ]];
+    name="$x"
+    name="\${name[@]//.*/_fastqc.zip}"
+    out="$o"
+    if [[ -z "\${o##*$name*}" ]];
     then
-        format="bam"
+        find -L . -type f -name '*zip' -a ! -name '\$name' -exec rm -f {} +
     else
-        format="fastq"
+        if [[ "$x" == *"bam"* ]];
+        then
+            format="bam"
+        else
+            format="fastq"
+        fi
+        fastqc -t $task.cpus -f \$format --noextract $x
     fi
-    fastqc -t $task.cpus -f \$format --noextract $x
     """
 }
 
@@ -54,6 +89,57 @@ process fastqc {
     -Djava.io.tmpdir=\$TMPDIR -XX:+UnlockExperimentalVMOptions -XX:+UseCGroupMemoryLimitForHeap
     -XX:MaxRAMFraction=2 -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -XX:+ExitOnOutOfMemoryError -XX:+PrintFlagsFinal
     -Xms\$memory -Xss1G -XX:CompressedClassSpaceSize=3221225472"
+
+    if [[ "$x" == *"bam"* ]];
+    then
+        format="bam"
+    else
+        format="fastq"
+    fi
+    fastqc -t $task.cpus -f \$format --noextract $x
+
+
+    ############################################################
+    ## VARIABLES
+    ############################################################
+    publishDir=$workflow.launchDir/$out_qul/fastqc
+    name="$x"
+
+    ## CALCULATING OUTPUT FILES
+
+    SAVEIFS=\$IFS
+    IFS=" "
+    name=(\$name)
+    name="\${name[@]//.* /_fastqc.zip} \${name[@]//.* /_fastqc.html}"
+    IFS=\$SAVEIFS
+
+    declare -A cmdFiles=(
+    ["\$name"]="if [[ \\"$x\\" == *\\"bam\\"* ]];
+    then
+        format=\\"bam\\"
+    else
+        format=\\"fastq\\"
+    fi
+    fastqc -t $task.cpus -f \\\$format --noextract $x"
+    )
+    ############################################################
+    ## STATIC
+    ############################################################
+    for i in "\${!cmdFiles[@]}"
+    do
+        outputs=\$(awk -F" " '{print NF}' <<< "\$i")
+        IFS=" "
+        arr=(\$i)
+        IFS="|"
+        current=\$(find -L \$publishDir -type f 2>/dev/null | grep -cE "\${arr[*]}")
+        IFS=\$SAVEIFS
+        if [[ ( \$outputs -gt 1 && \$current -eq \$outputs ) || ( \$outputs -eq 1 && \$current -gt 0 ) ]];
+        then
+            ln -s \$publishDir/\$i .
+        else
+            bash -c "\${cmdFiles[\$i]}"
+        fi
+    done
 */
 
 process multiqc {
@@ -67,14 +153,405 @@ process multiqc {
     output:
     file "*"
 
+    when:
+    !params.skip.contains("quality")
+
     script:
     """
     multiqc .
     """
 }
+//////////////////////////////////////////////////////
+// END 0.quality
+//////////////////////////////////////////////////////
 
-//1.deconatamination
 
+//////////////////////////////////////////////////////
+// START 0.bam2x
+//////////////////////////////////////////////////////
+process pbbam {
+	tag "pbbam.$x"
+    container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
+    publishDir out_i
+
+	input:
+	file x from ref_pbbam
+
+	output:
+	tuple file("*.bam.pass"), file("*.pbi") into ref_pbi
+
+	script:
+	"""
+    pbindex $x
+    ln -s $x ${x}.pass
+	"""
+}
+
+process bam2fastx {
+	tag "bam2fastq.$bam"
+    container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
+    publishDir out_dcn
+    cache 'lenient'
+
+	input:
+    tuple file(bam), file(index) from ref_pbi
+
+	output:
+	file "*.fastq.gz" into ref_hifiasm, ref_flye, ref_nextdenovo, ref_canu
+
+	script:
+	"""
+    name=$bam
+    name=\${name%.*}
+    mv $bam \$name
+    name=\${name%.*}
+    bam2fastq -o \$name \${name}.bam
+	"""
+}
+//////////////////////////////////////////////////////
+// END 0.bam2x
+//////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////
+// START 1.assemblers
+//////////////////////////////////////////////////////
+process hifiasm {
+	tag "hifiasm.$x"
+    container "$params.bio/hifiasm:0.13--h8b12597_0"
+    publishDir "$out_asm/hifiasm"
+
+	input:
+	file x from ref_hifiasm
+
+	output:
+    file "*tg.gfa" into hifiasm_o
+    file "*log"
+
+    //errorStrategy { task.exitStatus=0 ? 'ignore' : 'terminate' }
+
+	script:
+	"""
+    hifiasm=$workflow.launchDir/$out_asm/hifiasm
+    count=`ls -1 \$hifiasm/*tg.gfa 2>/dev/null | wc -l`
+    if [[ -f "\$hifiasm/hifiasm.asm.log" && $count == 4 ]];
+    then
+        ln -s \$hifiasm/*{log,tg.gfa} .
+    else
+        gigs=`echo "$task.memory" | sed 's/[^0-9]//g'`
+        if [[ \$gigs > 23 ]];
+        then
+            hifiasm -o hifiasm.asm -t $task.cpus $x 2> hifiasm.asm.log
+        else
+            touch hifiasm.asm.log
+        fi
+    fi
+	"""
+}
+
+process post_hifiasm {
+	tag "post_hifiasm.$x"
+    publishDir "$out_asm/hifiasm"
+
+	input:
+	file x from hifiasm_o
+
+	output:
+	file "*.fasta" into hifiasm
+
+    script:
+    """
+    case $x in hifiasm.asm.r_utg
+    name=hifiasm_\$ext.fasta
+    hifiasm=$workflow.workDir/$out_asm/hifiasm/\$name
+    if [[ -f "\$hifiasm" ]];
+    then
+        ln -s \$hifiasm .
+    else
+        awk '/^S/{print ">"\$2;print \$3}' $x > \$name
+    fi
+        awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.r_utg.gfa > hifiasm_raw.fasta
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_utg.gfa > hifiasm_processed.fasta
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_ctg.gfa > hifiasm_primary.fasta
+    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.a_ctg.gfa > hifiasm_alternate.fasta
+    """
+}
+
+process flye {
+	tag "flye.$x"
+    container "$params.bio/flye:2.8.2--py36h5202f60_0"
+    publishDir "$out_asm/flye"
+
+    input:
+    file x from ref_flye
+
+    output:
+    file "*fasta" into pre_flye
+    file "*{txt,log,gfa}"
+
+    script:
+    """
+    if [[ -d "$out_asm/flye" ]];
+    then
+        ln -s $out_asm/flye/* .
+    else
+	    flye --pacbio-hifi $x -o flye -t $task.cpus -g $params.genomeSize -i 10
+    fi
+    """
+}
+
+process post_flye{
+	tag "flye"
+    publishDir "$out_asm/flye"
+
+    input:
+    file x from pre_flye.collect()
+
+    output:
+    file "flye.fasta" into flye
+
+    script:
+    """
+    mv assembly.fasta flye.fasta
+    """
+}
+
+process yamls {
+	tag "yamls"
+    publishDir out_i
+
+    output:
+    file "pbipa.yaml" into pbipa_yaml
+
+    script:
+    """
+    tee -a pbipa.yaml <<EOT
+    name: pbipa
+    channels:
+      - defaults
+      - conda-forge
+      - bioconda
+    dependencies:
+      - pbipa=1.3.2
+    EOT
+    """
+}
+
+process pbipa {
+	tag "pbipa.$x"
+    publishDir "$out_asm/pbipa"
+    conda "$out_i/$y"
+
+    input:
+    file x from ref_pbipa
+    file y from pbipa_yaml
+
+    when:
+    params.all
+
+    output:
+    file "*.fasta" into pre_pbipa
+
+    script:
+    """
+    if [[ -d "$out_asm/pbipa" ]];
+    then
+        ln -s $out_asm/pbipa/* .
+    else
+        ipa local -i $x --nthreads ${task.cpus} --njobs 1
+    fi
+    """
+}
+
+process post_pbipa {
+    tag "post_pbipa"
+    publishDir "$out_asm/pbipa"
+
+    input:
+    file x from pre_pbipa.collect()
+
+    when:
+    params.all
+
+    output:
+    file "*.fasta" into pbipa
+
+    script:
+    """
+    mv final.a_ctg.fasta pbipa_alternate.fasta
+    mv final.p_ctg.fasta pbipa_primary.fasta
+    """
+}
+
+process nextdonovo {
+	tag "nextdenovo.$x"
+	
+	input:
+    file x from ref_nextdenovo
+
+    output:
+    file "ref.asm" into nextdenovo, nextdenovo_stats
+
+    when:
+    params.all
+
+    script:
+    """
+	ls $x > input.fofn
+	wget https://raw.githubusercontent.com/Nextomics/NextDenovo/master/doc/run.cfg
+	nextDenovo run.cfg
+    """
+}
+
+process nextpolish {
+	tag "nextpolish.$x"
+
+    input:
+    file x from nextdenovo
+
+    output:
+    file "*fasta" into nextpolish
+
+    when:
+    params.all
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process canu {
+	tag "canu.$x"
+    container "${params.bio}/canu:2.1.1--he1b5a44_0"
+    publishDir out_asm
+
+	input:
+	file x from ref_canu
+
+	output:
+	file "*.contigs.fasta" into canu
+    file "*.report" canu_report
+    file "*.fasta.gz" reads
+    file "*.unassembled.fasta" unassembled
+    file "*.layout.*" layouts
+
+	when:
+    params.all
+
+	script:
+	"""
+    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
+    if [[ \$gigs > 23 ]];
+    then
+        memory="\${gigs}G"
+	    canu -assemble -p asm -d fog genomeSize=${params.genomeSize} \
+        -pacbio-hifi $x useGrid=false \
+        maxThreads=$task.cpus maxMemory=\$memory \
+        merylThreads=$task.cpus merylMemory=\$memory merylConcurrency=1 \
+        hapThreads=$task.cpus hapMemory=\$memory hapConcurrency=1 \
+        batThreads=$task.cpus batMemory=\$memory batConcurrency=1 \
+        gridOptionsJobName="$x"
+    else
+        touch ${x}.contigs.layout.tigInfo
+        touch ${x}.contigs.layout.readToTig
+        touch ${x}.contigs.layout
+        touch ${x}.unassembled.fasta
+        touch ${x}.contigs.fasta
+        touch ${x}.trimmedReads.fasta.gz
+        touch ${x}.correctedReads.fasta.gz
+    fi
+	"""
+}
+
+process peregrine {
+	tag "peregrine.$x"
+    container 'docker://cschin/peregrine:1.6.3'
+    publishDir out_asm
+
+    input:
+    file x from ref_peregrine
+
+    output:
+    file "*fasta" into peregrine
+
+	when:
+    params.all
+
+    script:
+    """
+    yes yes | python3 /data/korens/devel/Peregrine/bin/pg_run.py asm chm13.list 24 24 24 24 24 24 24 24 24 --with-consensus --shimmer-r 3 --best_n_ovlp 8 --output ./
+    """
+}
+
+process pb_assembly {
+	tag "pb_assembly.$x"
+
+    input:
+    file x from ref_pb_assembly
+
+    output:
+    file "*fasta" into pb_assembly
+
+    when:
+    params.all
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+canu.mix(peregrine,pb_assembly)
+.into{
+    unpolish_stats;
+    i_purge_dups;
+}
+
+//1.2.polishing
+process purge_dups {
+	tag "purge_dups.$x"
+
+    input:
+    file x from i_purge_dups
+
+    output:
+    file "*fasta" into purge_dups, purge_dups_stats
+
+    when:
+    params.all || params.purge_dups
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+
+process racon {
+	tag "racon.$x"
+
+    input:
+    file x from purge_dups
+
+    output:
+    file "*fasta" into racon
+
+    when:
+    params.all
+
+    script:
+    """
+    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    """
+}
+//////////////////////////////////////////////////////
+// END 1.assemblers
+//////////////////////////////////////////////////////
+
+
+//////////////////////////////////////////////////////
+// START 1.curation
+//////////////////////////////////////////////////////
 process pbmm2_icontaminants {
 	tag "pbmm2_decontamination.$x"
     publishDir out_i
@@ -84,14 +561,14 @@ process pbmm2_icontaminants {
 
 	output:
     file "*ccs.mmi" into i_ccs
-    file "*isoseq.mmi" into i_isoseq
+    //file "*isoseq.mmi" into i_isoseq
 
 	script:
 	"""
     name="$c"
     name=\${name%.*}
     pbmm2 index --preset CCS $c \${name}_ccs.mmi
-    pbmm2 index --preset ISOSEQ $c \${name}_isoseq.mmi
+    #pbmm2 index --preset ISOSEQ $c \${name}_isoseq.mmi
 	"""
 }
 
@@ -100,9 +577,9 @@ process pbmm2_mcontaminats {
     publishDir out_dcn
 
 	input:
-	file x from bamref.mix(bamdna,bamrna)
+	file x from hifiasm.mix(flye, pbipa, nextpolish, racon)
     file iccs from i_ccs.collect()
-    file iisoseq from i_isoseq.collect()
+    //file iisoseq from i_isoseq.collect()
 
 	output:
     tuple file("*.bam.pass"), file("*_cont.bam") into pbcont
@@ -113,12 +590,12 @@ process pbmm2_mcontaminats {
     memory=`echo "$task.memory" | sed 's/[^0-9]//g' | awk -v cpus=\$cpus '{print int(\$0/cpus)}'`G
     preset=`echo ref_4W_A_hifi.bam | cut -d"_" -f4 \
     | awk -F '.' '{ print toupper(\$1) }'`
-    if [[ preset == "isoseq" ]];
-    then
-        index=$iisoseq
-    else
+    #if [[ preset == "isoseq" ]];
+    #then
+    #    index=\$iisoseq
+    #else
         index=$iccs
-    fi
+    #fi
     name="$x"
     name=\${name%.*}
 	pbmm2 align \$index $x \${name}_cont.bam --sort \
@@ -201,301 +678,13 @@ decon.branch {
     rnavar: it =~/dnavar/
 }.set{decon}
 
-decon.ref.into{
-    ref_pbbam;
-    ref_peregrine;
-    ref_pbipa;
-    ref_pb_assembly
-}
+decon.rnavar.into{i_isoseq; i_pbmm2}
 
-//bam 2 fastq or fasta
-
-process pbbam {
-	tag "pbbam.$x"
-    container "$params.bio/pbbam:1.6.0--h5b7e6e0_0"
-    publishDir out_i
-
-	input:
-	file x from ref_pbbam
-
-	output:
-	tuple file("*.bam.pass"), file("*.pbi") into ref_pbi
-
-	script:
-	"""
-    name="$x"
-    pbindex $x
-    ln -s $x ${x}.pass
-	"""
-}
-
-process bam2fastx {
-	tag "bam2fastq.$bam"
-    container "$params.bio/bam2fastx:1.3.0--he1c1bb9_8"
-    publishDir out_dcn
-    cache 'lenient'
-
-	input:
-    tuple file(bam), file(index) from ref_pbi
-
-	output:
-	file "*.fastq.gz" into ref_hifiasm, ref_flye, ref_nextdenovo, ref_canu
-
-	script:
-	"""
-    name="$bam"
-    name=\${name%.*}
-    mv $bam \$name
-    name=\${name%.*}
-    bam2fastq -o \$name \${name}.bam
-	"""
-}
-
-//2.assemblers
-
-process hifiasm {
-	tag "hifiasm.$x"
-    container "$params.bio/hifiasm:0.13--h8b12597_0"
-    publishDir "$out_asm/hifiasm"
-
-	input:
-	file x from ref_hifiasm
-
-	output:
-    file "*asm*" into hifiasm_o
-
-    //errorStrategy { task.exitStatus=0 ? 'ignore' : 'terminate' }
-
-	script:
-	"""
-    gigs=`echo "$task.memory" | sed 's/[^0-9]//g'`
-    if [[ \$gigs > 23 ]];
-    then
-        hifiasm -o hifiasm.asm -t $task.cpus $x 2> hifiasm.asm.log
-    else
-        touch hifiasm.asm.log
-    fi
-	"""
-}
-
-process post_hifiasm {
-	tag "post_hifiasm.$x"
-    publishDir "$out_asm/hifiasm"
-
-	input:
-	file x from hifiasm_o
-
-	output:
-	file "*.fasta" into hifiasm
-
-    script:
-    """
-    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.r_utg.gfa > hifiasm_raw.fasta
-    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_utg.gfa > hifiasm_processed.fasta
-    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.p_ctg.gfa > hifiasm_primary.fasta
-    awk '/^S/{print ">"\$2;print \$3}' hifiasm.asm.a_ctg.gfa > hifiasm_alternate.fasta
-    """
-}
-
-process flye {
-	tag "flye.$x"
-    container "$params.bio/flye:2.8.2--py36h5202f60_0"
-    publishDir "$out_asm/flye"
-
-    input:
-    file x from ref_flye
-
-    output:
-    file "*fasta" into pre_flye
-    file "*{txt,log,gfa}"
-
-    script:
-    """
-	flye --pacbio-hifi $x -o flye -t $task.cpus -g $params.genomeSize -i 10
-    """
-}
-
-process post_flye{
-	tag "flye"
-    publishDir "$out_asm/flye"
-
-    input:
-    file x from pre_flye.collect()
-
-    output:
-    file "flye.fasta" into flye
-
-    script:
-    """
-    mv assembly.fasta flye.fasta
-    """
-}
-
-process yamls {
-	tag "yamls"
-    publishDir out_i
-
-    output:
-    file "pbipa.yaml" into pbipa_yaml
-
-    script:
-    """
-    tee -a pbipa.yaml <<EOT
-    name: pbipa
-    channels:
-      - defaults
-      - conda-forge
-      - bioconda
-    dependencies:
-      - pbipa=1.3.2
-    EOT
-    """
-}
-
-process pbipa {
-	tag "pbipa.$x"
-    publishDir "$out_asm/pbipa"
-    conda "$out_i/$y"
-
-    input:
-    file x from ref_pbipa
-    file y from pbipa_yaml
-
-    output:
-    file "*.fasta" into pre_pbipa
-
-    script:
-    """
-    ipa local -i $x --nthreads ${task.cpus} --njobs 1
-    """
-}
-
-process post_pbipa {
-    tag "post_pbipa"
-    publishDir "$out_asm/pbipa"
-
-    input:
-    file x from pre_pbipa.collect()
-
-    output:
-    file "*.fasta" into pbipa
-
-    script:
-    """
-    mv final.a_ctg.fasta pbipa_alternate.fasta
-    mv final.p_ctg.fasta pbipa_primary.fasta
-    """
-}
-
-process nextdonovo {
-	tag "nextdenovo.$x"
-	
-	input:
-    file x from ref_nextdenovo
-
-    output:
-    file "ref.asm" into nextdenovo
-
-    when:
-    params.all
-
-    script:
-    """
-	ls $x > input.fofn
-	wget https://raw.githubusercontent.com/Nextomics/NextDenovo/master/doc/run.cfg
-	nextDenovo run.cfg
-    """
-}
-
-process canu {
-	tag "canu.$x"
-    container "${params.bio}/canu:2.1.1--he1b5a44_0"
-    publishDir out_asm
-
-	input:
-	file x from ref_canu
-
-	output:
-	file "*.contigs.fasta" into canu
-    file "*.report" canu_report
-    file "*.fasta.gz" reads
-    file "*.unassembled.fasta" unassembled
-    file "*.layout.*" layouts
-
-	when:
-    params.all
-
-	script:
-	"""
-    gigs=`echo "${task.memory}" | sed 's/[^0-9]//g'`
-    if [[ \$gigs > 23 ]];
-    then
-        memory="\${gigs}G"
-	    canu -assemble -p asm -d fog genomeSize=${params.genomeSize} \
-        -pacbio-hifi $x useGrid=false \
-        maxThreads=$task.cpus maxMemory=\$memory \
-        merylThreads=$task.cpus merylMemory=\$memory merylConcurrency=1 \
-        hapThreads=$task.cpus hapMemory=\$memory hapConcurrency=1 \
-        batThreads=$task.cpus batMemory=\$memory batConcurrency=1 \
-        gridOptionsJobName="$x"
-    else
-        touch ${x}.contigs.layout.tigInfo
-        touch ${x}.contigs.layout.readToTig
-        touch ${x}.contigs.layout
-        touch ${x}.unassembled.fasta
-        touch ${x}.contigs.fasta
-        touch ${x}.trimmedReads.fasta.gz
-        touch ${x}.correctedReads.fasta.gz
-    fi
-	"""
-}
-
-process peregrine {
-	tag "peregrine.$x"
-    container 'docker://cschin/peregrine:1.6.3'
-    publishDir out_asm
-
-    input:
-    file x from ref_peregrine
-
-    output:
-    file "*fasta" into peregrine
-
-	when:
-    params.all
-
-    script:
-    """
-    yes yes | python3 /data/korens/devel/Peregrine/bin/pg_run.py asm chm13.list 24 24 24 24 24 24 24 24 24 --with-consensus --shimmer-r 3 --best_n_ovlp 8 --output ./
-    """
-}
-
-process pb_assembly {
-	tag "pb_assembly.$x"
-
-    input:
-    file x from ref_pb_assembly
-
-    output:
-    file "*fasta" into pb_assembly
-
-    when:
-    params.all || params.pb_assembly
-
-    script:
-    """
-    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
-    """
-}
-
-//3.repeat analysis
-
-canu.mix(hifiasm,flye,pbipa,peregrine,nextdenovo,pb_assembly)
+//2.repeat analysis
+decon.ref
 .into{
     i_assembler_mummer;
-    i_assembler_assembly_stats;
-    i_assembler_quast;
-    i_assembler_genomeqc
+    polish_stats;
 }
 
 process mummer {
@@ -573,64 +762,20 @@ process minimap2 {
     """
 }
 
-//4.polishing
-
-process purge_dups {
-	tag "purge_dups.$x"
-
-    input:
-    file x from minimap2
-
-    output:
-    file "*fasta" into purge_dups, quast_dups, genomeqc_dups
-
-    when:
-    params.all || params.purge_dups
-
-    script:
-    """
-    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
-    """
+minimap2.into{
+    i_allhic;
+    i_marginphase;
+    i_falconphase;
+    i_hirise
 }
+//////////////////////////////////////////////////////
+// END 1.curation
+//////////////////////////////////////////////////////
 
-process racon {
-	tag "racon.$x"
 
-    input:
-    file x from purge_dups
-
-    output:
-    file "*fasta" into racon, quast_racon, genomeqc_racon
-
-    when:
-    params.all || params.racon
-
-    script:
-    """
-    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
-    """
-}
-
-process nextpolish {
-	tag "nextpolish.$x"
-
-    input:
-    file x from racon
-
-    output:
-    file "*fasta" into i_allhic, i_marginphase, i_falconphase, i_hirise, i_dipasm, quast_nextpolish, genomeqc_nextpolish
-
-    when:
-    params.all || params.nextpolish
-
-    script:
-    """
-    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
-    """
-}
-
-//5.phasing
-
+//////////////////////////////////////////////////////
+// START 1.phasing
+//////////////////////////////////////////////////////
 process allhic {
 	tag "nextpolish.$x"
 
@@ -703,7 +848,11 @@ process hirise {
     """
 }
 
-//6.re-phasing
+//4.2.re-phasing
+allhic.mix(marginphase,falconphase,hirise)
+.set{
+    i_dipasm
+}
 
 process dipasm {
 	tag "nextpolish.$x"
@@ -723,8 +872,10 @@ process dipasm {
     """
 }
 
-allhic.mix(marginphase, falconphase, hirise, dipasm)
-.into{ i_haplotypo; i_purge_haplotigs }
+dipasm.into{ 
+    i_haplotypo; 
+    i_purge_haplotigs 
+}
 
 process haplotypo {
 	tag "haplotypo.$x"
@@ -761,8 +912,37 @@ process purge_haplotigs {
     canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
     """
 }
+//////////////////////////////////////////////////////
+// END 1.phasing
+//////////////////////////////////////////////////////
 
-//assembly quality assesment
+
+//////////////////////////////////////////////////////
+// START 1.quality assessment
+//////////////////////////////////////////////////////
+unpolish_stats.mix(nextdenovo_stats, polish_stats)
+.into{
+    i_assembly_stats;
+    i_quast;
+    i_genomeqc;
+}
+
+process assembly_stats {
+    tag "assembly-stats.$x"
+    container "$params.fog/assembly-stats:17.02"
+    publishDir "$out_asm/assembly-stats"
+
+    input:
+    file x from i_assembly_stats.collect()
+
+    output:
+    file "*"
+
+    script:
+    """
+    create-stats ${x} > assembly-stats.html
+    """
+}
 
 process quast {
     tag "quast"
@@ -770,7 +950,7 @@ process quast {
     publishDir "$out_asm/quast"
 
     input:
-    file x from i_assembler_quast.mix(quast_dups,quast_racon,quast_nextpolish).collect()
+    file x from i_quast.collect()
 
     output:
     file "genome.qc" into quast, i_icarus
@@ -823,7 +1003,7 @@ process genomeqc {
     tag "genomeqc.$x"
 
     input:
-    file x from i_assembler_genomeqc.mix(genomeqc_dups,genomeqc_racon,genomeqc_nextpolish).collect()
+    file x from i_genomeqc.collect()
 
     output:
     file "*fasta" into genomeqc
@@ -854,25 +1034,10 @@ process merqury {
     Quast.py --large --skip-unaligned-mis-contigs    
     """
 }
+//////////////////////////////////////////////////////
+// END 1.quality assessment
+//////////////////////////////////////////////////////
 
-process assembly_stats {
-    tag "assembly-stats.$x"
-    container "$params.fog/assembly-stats:17.02"
-    publishDir "$out_asm/assembly-stats"
-
-    input:
-    file x from i_assembler_assembly_stats.mix(assembly_stats_purge_haplotigs).collect()
-
-    output:
-    file "*"
-
-    script:
-    """
-    create-stats ${x} > assembly-stats.html
-    """
-}
-
-decon.rnavar.into{i_isoseq; i_pbmm2}
 
 //isoseq
 process isoseq3 {
