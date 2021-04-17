@@ -11,21 +11,22 @@ New Zealand Flat Oyster Genomics
 
 ## QUICK START
 
+```
 curl -L -o ecoli.fastq https://sra-pub-src-1.s3.amazonaws.com/SRR10971019/m54316_180808_005743.fastq.1
+```
 
-### Hifiasm
+### ASSEMBLY
 
-nextflow run kiwiepic/FOG/hifiasm.nf -resume -profile local --ref rapoi/ecoli.fastq --genomeSize 1g
+```
+nextflow run kiwiepic/FOG/<assembler>.nf -resume -profile local --ref ecoli.fastq --genomeSize 4.8m
+```
 
-### Flye
+assemblers: hifiasm | flye | pbipa | hicanu | peregrine
 
-nextflow run kiwiepic/FOG/flye.nf -resume -profile local --ref rapoi/ecoli.fastq --genomeSize 1g
+### Purge Dups
 
-### Hi-Canu
+It is recommendable to run purge dups after assemblers hicanu and peregrine
 
-nextflow run kiwiepic/FOG/hicanu.nf -resume -profile local --ref rapoi/ecoli.fastq --genomeSize 1g
-
-nextflow run kiwiepic/FOG/purge_dups.nf -resume -profile local --ref output/1-assembly/hicanu/*.fa
-
-### Peregrine
-
+```
+nextflow run kiwiepic/FOG/purge_dups.nf -resume -profile local --ref ecoli.fastq
+```

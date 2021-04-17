@@ -20,8 +20,10 @@ process peregrine {
 
     script:
     """
-    echo "$x" > reads.lst
-    pg_run.py asm reads.lst \
+    echo "$x" > seq_dataset.lst
+    . /opt/conda/etc/profile.d/conda.sh
+    conda activate peregrine
+    yes yes | pg_run.py asm seq_dataset.lst \
     ${task.cpus} ${task.cpus} \
     ${task.cpus} ${task.cpus} \
     ${task.cpus} ${task.cpus} \
