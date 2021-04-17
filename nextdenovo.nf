@@ -37,6 +37,6 @@ process nextpolish {
 
     script:
     """
-    canu -assemble -p asm -d asm genomeSize=0.6g -pacbio-hifi $x
+    canu -assemble -p asm -d asm genomeSize=$params.genomeSize -pacbio-hifi $x
     """
 }

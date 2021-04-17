@@ -13,7 +13,7 @@ process yamls {
   publishDir out_i
 
   output:
-  file "pbipa.yaml" into pbipa_yaml
+  file "pbipa.yaml" into yaml
 
   script:
   """
@@ -37,7 +37,7 @@ process pbipa {
 
   input:
   file x from ref
-  file y from pbipa_yaml
+  file y from yaml
 
   output:
   file "pbipa/assembly-results/*.fasta" into pre_pbipa
