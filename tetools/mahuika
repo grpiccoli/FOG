@@ -1,0 +1,24 @@
+#!/usr/bin/expect
+
+set KEY [lindex $argv 0]
+log_file /home/rodriggu/ssh_tmp.log
+
+set timeout 30
+log_user 1
+set send_slow {1 .01}
+
+send_log "Connecting to mahuika"
+eval spawn ssh mahuika
+expect {
+        timeout { send_user "no first password required\n"; interact }
+        "*assword*" { send "PASSWORD\r" }
+}
+expect {
+        timeout { send_user "no second factor requested\n"; interact }
+        "*Code*" { send -s $KEY\r }
+}
+expect {
+        timeout { send_user "no thrid factor requested\n"; interact }
+        "*assword*" { send "PASSWORD\r" }
+}
+interact
