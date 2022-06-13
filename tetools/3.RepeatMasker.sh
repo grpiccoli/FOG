@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=Rmasker
 ### each process only uses between 4 to 6 processes even though it says 32
-#SBATCH -c 32
+#SBATCH -c 72
 #SBATCH -o ./%x-%A-%a.out
 #SBATCH -e ./%x-%A-%a.err
 ### 
@@ -22,4 +22,4 @@ db=${dbs[$num]}
 mkdir -p $OUT/${db}/Rmasker
 cd $OUT/${db}/Rmasker
 ln -s $OUT/${db}/consensi.fa.classified $OUT/${db}/Rmasker/consensi.fa.classified
-$s RepeatMasker -lib consensi.fa.classified -gff -pa $cpu ${db}*.fa
+$s RepeatMasker -libdir $LIBDIR -lib consensi.fa.classified -gff -pa $cpu -a -inv -xsmall -x -poly -source -html -ace -gff -e -u ${db}*.fa
