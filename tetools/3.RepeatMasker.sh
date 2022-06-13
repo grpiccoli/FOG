@@ -8,6 +8,7 @@
 #SBATCH --time=3-0:00
 #SBATCH --mem=50G
 
+cpus=$(($SLURM_CPUS_PER_TASK)/4)
 LB=/vuw/tetools/Libraries
 APP=tetools
 s="singularity run -B $scra:/vuw -W /vuw/$APP --env LC_ALL=C --env LIBDIR=$LB --env BLASTDB=/vuw/$APP/databases $scra/$APP/tetools_grpiccoli.sif"
@@ -21,4 +22,4 @@ db=${dbs[$num]}
 mkdir -p $OUT/${db}/Rmasker
 cd $OUT/${db}/Rmasker
 ln -s $OUT/${db}/consensi.fa.classified $OUT/${db}/Rmasker/consensi.fa.classified
-$s RepeatMasker -lib consensi.fa.classified -gff -pa 32 ${db}*.fa
+$s RepeatMasker -lib consensi.fa.classified -gff -pa $cpu ${db}*.fa
